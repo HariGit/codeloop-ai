@@ -35,6 +35,8 @@ export interface AgentAction {
   answer?: string;
   /** Files used as evidence for the final answer. */
   evidence?: string[];
+  /** Generic tool input (new format; top-level fields still supported). */
+  input?: Record<string, unknown>;
 }
 
 /** Options for an Ollama chat call. */
@@ -100,7 +102,8 @@ export const AGENT_ACTION_SCHEMA = {
     content: { type: 'string' },
     command: { type: 'string' },
     answer: { type: 'string' },
-    evidence: { type: 'array', items: { type: 'string' } }
+    evidence: { type: 'array', items: { type: 'string' } },
+    input: { type: 'object' }
   },
   required: ['thought', 'action']
 } as const;

@@ -2,7 +2,10 @@ import * as vscode from 'vscode';
 import { ModelProvider } from '../llm/ModelProvider';
 import { createModelProvider } from '../llm/ProviderFactory';
 import { AgentMemory, MEMORY_FILES } from './memory';
-import { readFile, searchCode, writeFile, runCommand } from './tools';
+import { ToolRegistry } from '../tools/ToolRegistry';
+import { NativeToolProvider } from '../tools/NativeToolProvider';
+import { McpToolProvider } from '../tools/McpToolProvider';
+import { ToolCall } from '../tools/ToolProvider';
 import { detectSalesforceTaskMode, TaskModeResult } from './taskModeDetector';
 import { loadAllSalesforceContext } from './instructionLoader';
 import {
@@ -60,6 +63,11 @@ export async function runAgentLoop(
   const client = createModelProvider(config);
   const memory = new AgentMemory(workspaceRoot);
   await memory.init();
+
+  // Tool registry: native tools now; MCP tools plug in here later.
+  const registry = new ToolRegistry();
+  registry.registerProvider(new NativeToolProvider(workspaceRoot));
+  registry.registerProvider(new McpToolProvider());
 
   progress.report({ message: `Checking model provider (${client.name})...` });
   await client.healthCheck(); // Throws OllamaError with a clear message if not available.
@@ -183,9 +191,9 @@ export async function runAgentLoop(
       continue;
     }
 
-    // ACT + OBSERVE
+    // ACT + OBSERVE (through the tool registry; allowlist enforced again as a safety net)
     progress.report({ message: `Iteration ${i}: ${action.action}...` });
-    const result = await executeAction(action, workspaceRoot);
+    const result = await registry.execute(toToolCall(action), modeResult.allowedActions);
     output.appendLine(`Observation (${result.success ? 'ok' : 'FAILED'}): ${truncate(result.observation, 500)}`);
     seenActions.set(signature, result.observation);
 
@@ -380,38 +388,52 @@ export function parseAction(raw: string): AgentAction | undefined {
   if (!a.action || !validActions.includes(a.action)) {
     return undefined;
   }
+
+  // Backward compatibility: accept parameters at top level (old format)
+  // or inside "input" (new format), hoisting input values when needed.
+  const input =
+    typeof a.input === 'object' && a.input !== null && !Array.isArray(a.input)
+      ? (a.input as Record<string, unknown>)
+      : undefined;
+  const pick = (top: unknown, key: string): string | undefined => {
+    if (typeof top === 'string') return top;
+    const v = input?.[key];
+    return typeof v === 'string' ? v : undefined;
+  };
+  const path = pick(a.path, 'path');
+  const query = pick(a.query, 'query');
+  const content = pick(a.content, 'content');
+  const command = pick(a.command, 'command');
+
   // Validate required fields per action.
-  if (a.action === 'read_file' && !a.path) return undefined;
-  if (a.action === 'search_code' && !a.query) return undefined;
-  if (a.action === 'write_file' && (!a.path || typeof a.content !== 'string')) return undefined;
-  if (a.action === 'run_command' && !a.command) return undefined;
+  if (a.action === 'read_file' && !path) return undefined;
+  if (a.action === 'search_code' && !query) return undefined;
+  if (a.action === 'write_file' && (!path || content === undefined)) return undefined;
+  if (a.action === 'run_command' && !command) return undefined;
 
   return {
     thought: typeof a.thought === 'string' ? a.thought : '(no thought provided)',
     action: a.action,
-    path: a.path,
-    query: a.query,
-    content: a.content,
-    command: a.command,
+    path,
+    query,
+    content,
+    command,
     answer: a.answer,
-    evidence: Array.isArray(a.evidence) ? a.evidence.filter((e): e is string => typeof e === 'string') : undefined
+    evidence: Array.isArray(a.evidence) ? a.evidence.filter((e): e is string => typeof e === 'string') : undefined,
+    input
   };
 }
 
-/** Route an action to the matching tool (safety rules live in tools.ts). */
-async function executeAction(action: AgentAction, workspaceRoot: string): Promise<ActionResult> {
-  switch (action.action) {
-    case 'read_file':
-      return readFile(workspaceRoot, action.path!);
-    case 'search_code':
-      return searchCode(workspaceRoot, action.query!);
-    case 'write_file':
-      return writeFile(workspaceRoot, action.path!, action.content!, action.thought);
-    case 'run_command':
-      return runCommand(workspaceRoot, action.command!, action.thought);
-    default:
-      return { success: false, observation: `Unknown action: ${action.action}` };
-  }
+/** Map an AgentAction (old top-level fields or new input object) to a ToolCall. */
+export function toToolCall(action: AgentAction): ToolCall {
+  const input: Record<string, unknown> = { ...(action.input ?? {}) };
+  if (action.path !== undefined) input.path = action.path;
+  if (action.query !== undefined) input.query = action.query;
+  if (action.content !== undefined) input.content = action.content;
+  if (action.command !== undefined) input.command = action.command;
+  // The model's thought doubles as the approval-dialog reason.
+  input.reason = action.thought;
+  return { name: action.action, input };
 }
 
 function describeAction(action: AgentAction): string {
