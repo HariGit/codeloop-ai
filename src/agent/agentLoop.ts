@@ -128,7 +128,19 @@ export async function runAgentLoop(
 
     // FINISH? Validate the answer against what actually happened.
     if (action.action === 'final_answer') {
-      const answer = action.answer || '(no answer text provided)';
+      const answerText = (action.answer ?? '').trim();
+      // Empty answers are rejected — the model must actually answer.
+      if (!answerText && answerRejections < ANSWER_VALIDATION_RETRIES) {
+        answerRejections++;
+        output.appendLine('Final answer REJECTED (empty answer text). Asking for a complete answer...');
+        messages.push({
+          role: 'user',
+          content:
+            'Your final_answer had no "answer" text. Respond again with a final_answer JSON whose "answer" field contains the complete answer, based only on the files you actually read in this session (see ACTIONS COMPLETED SO FAR above — you already read the target class).'
+        });
+        continue;
+      }
+      const answer = answerText || '(no answer text provided)';
       const violations = validateFinalAnswer(answer, hadSuccessfulWrite, hadSuccessfulRun);
       if (violations.length > 0 && answerRejections < ANSWER_VALIDATION_RETRIES) {
         answerRejections++;
@@ -198,8 +210,18 @@ export async function runAgentLoop(
       );
     }
 
-    // REFLECT + IMPROVE PLAN: feed the observation back for the next step.
-    messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, result.observation) });
+    // REFLECT + IMPROVE PLAN: feed the observation back, with a session recap
+    // so the model does not forget files it already read.
+    const recap = history.map(h => `${h.action}${h.detail} [${h.success ? 'ok' : 'fail'}]`).join('; ');
+    messages.push({
+      role: 'user',
+      content: buildObservationPrompt(
+        goal,
+        i,
+        config.maxIterations,
+        `${result.observation}\n\nACTIONS COMPLETED SO FAR: ${recap}`
+      )
+    });
   }
 
   // Wrap up.
