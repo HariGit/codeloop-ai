@@ -1,3 +1,5 @@
+import { getResponseTemplate } from './responseTemplates';
+
 /**
  * Prompt builders for the CodeLoop AI agent loop.
  */
@@ -64,7 +66,12 @@ export function buildModeSection(mode: string, allowedActions: string[]): string
 - Do NOT look into creating tests unless the user explicitly asks for a test class.
 - Do NOT create or modify files. Do NOT run commands.`);
   }
-  return lines.join('\n');
+  // Mode-specific final answer template (Salesforce output formats).
+  const template = getResponseTemplate(mode);
+  if (template) {
+    lines.push(template);
+  }
+  return lines.join('\n\n');
 }
 
 /** First user message: goal, mode section, plus memory context. */
