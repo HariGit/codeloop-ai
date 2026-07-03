@@ -1,23 +1,71 @@
 import * as vscode from 'vscode';
-import { OllamaClient } from './ollamaClient';
+import { OllamaClient, AGENT_ACTION_SCHEMA } from './ollamaClient';
 import { AgentMemory, MEMORY_FILES } from './memory';
 import { readFile, searchCode, writeFile, runCommand } from './tools';
 import {
   ACTION_SYSTEM_PROMPT,
   buildInitialPrompt,
   buildObservationPrompt,
+  buildRejectedAnswerPrompt,
   buildReflectionPrompt,
   INVALID_JSON_PROMPT
 } from './prompts';
 import {
   AgentAction,
+  AgentActionType,
   AgentConfig,
   ActionResult,
   ChatMessage,
-  IterationRecord
+  IterationRecord,
+  TaskMode
 } from '../types/agentTypes';
 
 const JSON_RETRIES = 2;
+const ANSWER_VALIDATION_RETRIES = 2;
+
+const ALLOWED_ACTIONS: Record<TaskMode, AgentActionType[]> = {
+  EXPLAIN_ONLY: ['search_code', 'read_file', 'final_answer'],
+  MODIFY_CODE: ['search_code', 'read_file', 'write_file', 'run_command', 'final_answer'],
+  CREATE_TEST: ['search_code', 'read_file', 'write_file', 'run_command', 'final_answer'],
+  RUN_TESTS: ['search_code', 'read_file', 'run_command', 'final_answer'],
+  DEBUG: ['search_code', 'read_file', 'run_command', 'final_answer']
+};
+
+/** Detect the task mode from the user's goal (checked before the loop starts). */
+export function detectTaskMode(goal: string): TaskMode {
+  const g = goal.toLowerCase();
+  if (/\b(create|write|add|generate|build)\b[^.]*\btest(s| class| classes| coverage| method)?\b/.test(g)) {
+    return 'CREATE_TEST';
+  }
+  if (/\b(run|execute)\b[^.]*\btests?\b/.test(g) || /\bvalidate\b[^.]*\bdeploy/.test(g) || /\bdeploy(ment)?\b/.test(g)) {
+    return 'RUN_TESTS';
+  }
+  if (/\b(modify|refactor|update|fix|change|implement|rename|migrate|create|add|write|generate|build)\b/.test(g)) {
+    return 'MODIFY_CODE';
+  }
+  if (/\b(debug|investigate|troubleshoot)\b/.test(g) || /\b(error|issue|bug|failing|broken)\b/.test(g)) {
+    return 'DEBUG';
+  }
+  // guide / explain / understand / analyze / describe / how does — and the safe default.
+  return 'EXPLAIN_ONLY';
+}
+
+/**
+ * Validate a final answer against the session history.
+ * Returns claim words that have no matching successful action ([] = valid).
+ */
+export function validateFinalAnswer(answer: string, hadWrite: boolean, hadRun: boolean): string[] {
+  const violations: string[] = [];
+  const writeClaims = answer.match(/\b(created|updated|modified|wrote|saved)\b/gi) ?? [];
+  const runClaims = answer.match(/\b(ran|executed|deployed)\b/gi) ?? [];
+  if (writeClaims.length > 0 && !hadWrite) {
+    violations.push(...new Set(writeClaims.map(w => w.toLowerCase())));
+  }
+  if (runClaims.length > 0 && !hadRun) {
+    violations.push(...new Set(runClaims.map(w => w.toLowerCase())));
+  }
+  return violations;
+}
 
 /**
  * Core recursive loop:
@@ -38,6 +86,9 @@ export async function runAgentLoop(
   progress.report({ message: 'Checking Ollama...' });
   await client.healthCheck(); // Throws OllamaError with a clear message if not available.
 
+  const mode = detectTaskMode(goal);
+  output.appendLine(`Task mode: ${mode} (allowed: ${ALLOWED_ACTIONS[mode].join(', ')})`);
+
   // Memory-informed planning: read rules/summary/patterns before the first step.
   const [rules, summary, patterns] = await Promise.all([
     memory.read(MEMORY_FILES.projectRules),
@@ -47,11 +98,16 @@ export async function runAgentLoop(
 
   const messages: ChatMessage[] = [
     { role: 'system', content: ACTION_SYSTEM_PROMPT },
-    { role: 'user', content: buildInitialPrompt(goal, rules, summary, patterns) }
+    { role: 'user', content: buildInitialPrompt(goal, mode, rules, summary, patterns) }
   ];
 
   const history: IterationRecord[] = [];
+  const seenActions = new Map<string, string>(); // signature → previous observation
+  let hadSuccessfulWrite = false;
+  let hadSuccessfulRun = false;
+  let answerRejections = 0;
   let finalAnswer: string | undefined;
+  let finalEvidence: string[] = [];
 
   for (let i = 1; i <= config.maxIterations; i++) {
     if (token.isCancellationRequested) {
@@ -62,7 +118,7 @@ export async function runAgentLoop(
     progress.report({ message: `Iteration ${i}/${config.maxIterations}: thinking...` });
     output.appendLine(`\n--- Iteration ${i}/${config.maxIterations} ---`);
 
-    // THINK: get a JSON action from the model (with retries on invalid JSON).
+    // THINK: get a JSON action from the model (structured output + retries).
     const action = await getAction(client, messages, output);
     if (!action) {
       await memory.saveFailedAttempt(goal, `Iteration ${i}: model kept returning invalid JSON. Aborted.`);
@@ -71,17 +127,62 @@ export async function runAgentLoop(
 
     output.appendLine(`Thought: ${action.thought}`);
     output.appendLine(`Action: ${action.action}${describeAction(action)}`);
+    messages.push({ role: 'assistant', content: JSON.stringify(action) });
 
-    // FINISH?
+    // FINISH? Validate the answer against what actually happened.
     if (action.action === 'final_answer') {
-      finalAnswer = action.answer || '(no answer text provided)';
+      const answer = action.answer || '(no answer text provided)';
+      const violations = validateFinalAnswer(answer, hadSuccessfulWrite, hadSuccessfulRun);
+      if (violations.length > 0 && answerRejections < ANSWER_VALIDATION_RETRIES) {
+        answerRejections++;
+        output.appendLine(
+          `Final answer REJECTED (claims without matching action: ${violations.join(', ')}). Asking for a corrected answer...`
+        );
+        await memory.saveFailedAttempt(
+          goal,
+          `Iteration ${i}: final answer claimed "${violations.join(', ')}" with no successful write_file/run_command. Rejected.`
+        );
+        messages.push({ role: 'user', content: buildRejectedAnswerPrompt(violations) });
+        continue;
+      }
+      if (violations.length > 0) {
+        output.appendLine(`WARNING: answer still contains unverified claims (${violations.join(', ')}). Verify manually.`);
+      }
+      finalAnswer = answer;
+      finalEvidence = filterEvidence(action.evidence, history);
       break;
+    }
+
+    // MODE GUARD: block disallowed actions instead of executing them.
+    if (!ALLOWED_ACTIONS[mode].includes(action.action)) {
+      const observation = `Action "${action.action}" is BLOCKED in ${mode} mode. Allowed actions: ${ALLOWED_ACTIONS[mode].join(', ')}. Stay on the original goal.`;
+      output.appendLine(`Blocked: ${observation}`);
+      messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, observation) });
+      continue;
+    }
+
+    // DUPLICATE GUARD: don't re-run an identical action; replay the earlier result.
+    const signature = `${action.action}|${action.path ?? ''}|${action.query ?? ''}|${action.command ?? ''}`;
+    const previous = seenActions.get(signature);
+    if (previous && (action.action === 'read_file' || action.action === 'search_code')) {
+      const observation = `You already performed this exact action earlier. Previous result:\n${previous}`;
+      output.appendLine('Duplicate action — replayed earlier observation.');
+      messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, observation) });
+      continue;
     }
 
     // ACT + OBSERVE
     progress.report({ message: `Iteration ${i}: ${action.action}...` });
     const result = await executeAction(action, workspaceRoot);
     output.appendLine(`Observation (${result.success ? 'ok' : 'FAILED'}): ${truncate(result.observation, 500)}`);
+    seenActions.set(signature, result.observation);
+
+    if (result.success && action.action === 'write_file') {
+      hadSuccessfulWrite = true;
+    }
+    if (result.success && action.action === 'run_command') {
+      hadSuccessfulRun = true;
+    }
 
     history.push({
       iteration: i,
@@ -93,17 +194,22 @@ export async function runAgentLoop(
     });
 
     if (!result.success) {
-      await memory.saveFailedAttempt(goal, `Iteration ${i}: ${action.action}${describeAction(action)} → ${truncate(result.observation, 300)}`);
+      await memory.saveFailedAttempt(
+        goal,
+        `Iteration ${i}: ${action.action}${describeAction(action)} → ${truncate(result.observation, 300)}`
+      );
     }
 
     // REFLECT + IMPROVE PLAN: feed the observation back for the next step.
-    messages.push({ role: 'assistant', content: JSON.stringify(action) });
-    messages.push({ role: 'user', content: buildObservationPrompt(i, config.maxIterations, result.observation) });
+    messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, result.observation) });
   }
 
   // Wrap up.
   if (finalAnswer) {
     output.appendLine(`\n=== FINAL ANSWER ===\n${finalAnswer}`);
+    if (finalEvidence.length > 0) {
+      output.appendLine(`\nEvidence files:\n${finalEvidence.map(e => `- ${e}`).join('\n')}`);
+    }
     vscode.window.showInformationMessage('CodeLoop AI: Done. See "CodeLoop AI" output for the answer.');
   } else if (!token.isCancellationRequested) {
     output.appendLine(`\nReached max iterations (${config.maxIterations}) without a final answer.`);
@@ -116,10 +222,16 @@ export async function runAgentLoop(
     const historyText = history.length
       ? history.map(h => `${h.iteration}. [${h.success ? 'ok' : 'fail'}] ${h.action}${h.detail} → ${h.observation}`).join('\n')
       : '(no actions executed)';
-    const reflection = await client.chat([
-      { role: 'system', content: 'You are a concise engineering coach.' },
-      { role: 'user', content: buildReflectionPrompt(goal, historyText + (finalAnswer ? `\nFinal answer: ${truncate(finalAnswer, 300)}` : '')) }
-    ]);
+    const reflection = await client.chat(
+      [
+        { role: 'system', content: 'You are a concise engineering coach.' },
+        {
+          role: 'user',
+          content: buildReflectionPrompt(goal, historyText + (finalAnswer ? `\nFinal answer: ${truncate(finalAnswer, 300)}` : ''))
+        }
+      ],
+      { temperature: 0.3 }
+    );
     await memory.saveReflection(goal, reflection);
     output.appendLine('\nReflection saved to .agent-memory/reflections.md');
 
@@ -133,14 +245,25 @@ export async function runAgentLoop(
   }
 }
 
-/** Ask the model for the next action; retry when JSON is invalid. */
+/** Keep only evidence entries matching files the agent actually read or searched. */
+function filterEvidence(evidence: string[] | undefined, history: IterationRecord[]): string[] {
+  if (!evidence || evidence.length === 0) {
+    return [];
+  }
+  const observedFiles = history
+    .filter(h => h.success && h.action === 'read_file')
+    .map(h => h.detail.replace(/[()\s]/g, ''));
+  return evidence.filter(e => observedFiles.some(f => f.includes(e) || e.includes(f)));
+}
+
+/** Ask the model for the next action; structured output + retry when JSON is invalid. */
 async function getAction(
   client: OllamaClient,
   messages: ChatMessage[],
   output: vscode.OutputChannel
 ): Promise<AgentAction | undefined> {
   for (let attempt = 0; attempt <= JSON_RETRIES; attempt++) {
-    const raw = await client.chat(messages);
+    const raw = await client.chat(messages, { format: AGENT_ACTION_SCHEMA, temperature: 0.1 });
     const action = parseAction(raw);
     if (action) {
       return action;
@@ -197,7 +320,8 @@ export function parseAction(raw: string): AgentAction | undefined {
     query: a.query,
     content: a.content,
     command: a.command,
-    answer: a.answer
+    answer: a.answer,
+    evidence: Array.isArray(a.evidence) ? a.evidence.filter((e): e is string => typeof e === 'string') : undefined
   };
 }
 

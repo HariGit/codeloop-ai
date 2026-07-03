@@ -1,4 +1,23 @@
-import { ChatMessage, OllamaChatResponse, AgentConfig } from '../types/agentTypes';
+import { ChatMessage, ChatOptions, OllamaChatResponse, AgentConfig } from '../types/agentTypes';
+
+/** JSON schema for AgentAction — used with Ollama structured output. */
+export const AGENT_ACTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    thought: { type: 'string' },
+    action: {
+      type: 'string',
+      enum: ['read_file', 'search_code', 'write_file', 'run_command', 'final_answer']
+    },
+    path: { type: 'string' },
+    query: { type: 'string' },
+    content: { type: 'string' },
+    command: { type: 'string' },
+    answer: { type: 'string' },
+    evidence: { type: 'array', items: { type: 'string' } }
+  },
+  required: ['thought', 'action']
+} as const;
 
 /** Error with a user-friendly message for known Ollama failures. */
 export class OllamaError extends Error {
@@ -16,7 +35,7 @@ export class OllamaClient {
   constructor(private readonly config: AgentConfig) {}
 
   /** Send chat messages, return the assistant's text content. */
-  async chat(messages: ChatMessage[]): Promise<string> {
+  async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<string> {
     let response: Response;
     try {
       response = await fetch(this.config.endpoint, {
@@ -26,7 +45,9 @@ export class OllamaClient {
           model: this.config.model,
           messages,
           stream: false,
-          options: { temperature: 0.2 }
+          // Ollama structured output: constrains the model to this JSON schema.
+          ...(opts?.format ? { format: opts.format } : {}),
+          options: { temperature: opts?.temperature ?? 0.1 }
         })
       });
     } catch {

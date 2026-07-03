@@ -9,6 +9,14 @@ export type AgentActionType =
   | 'run_command'
   | 'final_answer';
 
+/** Detected task mode; controls which actions are allowed. */
+export type TaskMode =
+  | 'EXPLAIN_ONLY'
+  | 'MODIFY_CODE'
+  | 'CREATE_TEST'
+  | 'RUN_TESTS'
+  | 'DEBUG';
+
 /** JSON action the LLM must return each iteration. */
 export interface AgentAction {
   /** Short reasoning about the goal and current state. */
@@ -25,6 +33,15 @@ export interface AgentAction {
   command?: string;
   /** Final answer text (final_answer). */
   answer?: string;
+  /** Files used as evidence for the final answer. */
+  evidence?: string[];
+}
+
+/** Options for an Ollama chat call. */
+export interface ChatOptions {
+  /** JSON schema for Ollama structured output (format field). */
+  format?: object;
+  temperature?: number;
 }
 
 /** Result of executing one action. */

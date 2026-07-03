@@ -4,7 +4,8 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { ActionResult } from '../types/agentTypes';
 
-const MAX_FILE_CHARS = 12000;
+const MAX_FILE_CHARS = 50000;
+const MAX_CMD_OUTPUT_CHARS = 12000;
 const MAX_SEARCH_RESULTS = 30;
 const COMMAND_TIMEOUT_MS = 60000;
 
@@ -46,9 +47,11 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
   if (!query.trim()) {
     return { success: false, observation: 'Empty search query.' };
   }
+  // Salesforce sources (.cls, .trigger, .page, .component, .xml incl. flow/labels
+  // meta files, .js, .html, .css) plus common general extensions.
   const files = await vscode.workspace.findFiles(
-    '**/*.{ts,js,json,md,cls,trigger,xml,html,css,apex,cmp,page,flow-meta.xml,labels-meta.xml,py,java}',
-    '{**/node_modules/**,**/out/**,**/.git/**,**/.agent-memory/**}',
+    '**/*.{cls,trigger,page,component,xml,js,html,css,apex,cmp,ts,json,md,py,java}',
+    '{**/.sf/**,**/.sfdx/**,**/node_modules/**,**/out/**,**/.git/**,**/.agent-memory/**}',
     2000
   );
   const needle = query.toLowerCase();
@@ -143,7 +146,7 @@ export async function runCommand(workspaceRoot: string, command: string): Promis
       command,
       { cwd: workspaceRoot, timeout: COMMAND_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
       (error, stdout, stderr) => {
-        const out = [stdout, stderr].filter(Boolean).join('\n').slice(0, MAX_FILE_CHARS);
+        const out = [stdout, stderr].filter(Boolean).join('\n').slice(0, MAX_CMD_OUTPUT_CHARS);
         if (error) {
           resolve({
             success: false,
