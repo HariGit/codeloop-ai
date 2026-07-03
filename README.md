@@ -182,7 +182,24 @@ All providers normalize responses to the same format, so the agent loop, safety 
 
 Trade-offs: Claude follows the JSON action format and section templates far better than small local models (fewer retries, better answers), but your code leaves the machine and each run costs tokens. Switch back anytime with `"codeloopAi.provider": "ollama"`. Treat the API key like a password — it lives in your user settings; never commit it.
 
-OpenAI works the same way with `codeloopAi.openAiApiKey` and e.g. `"codeloopAi.model": "gpt-4o"`; the VS Code LM provider needs no key, just VS Code 1.90+ with Copilot signed in.
+### Connecting to OpenAI (Codex)
+
+1. Create an API key at [platform.openai.com](https://platform.openai.com) (API Keys → Create new secret key; billing required — the API is separate from a ChatGPT Plus subscription).
+2. In VS Code settings or settings.json:
+
+```json
+"codeloopAi.provider": "openai",
+"codeloopAi.openAiApiKey": "sk-your-key-here",
+"codeloopAi.model": "gpt-4o"
+```
+
+3. Run any CodeLoop command. A wrong key shows "OpenAI API key rejected (401)"; an unknown model shows a 404 naming the setting to check.
+
+Note: the provider uses the Chat Completions API, so use chat models (`gpt-4o`, `gpt-4o-mini`). OpenAI's dedicated Codex agent models run on a different API and are not wired in.
+
+### Connecting to Copilot (VS Code LM)
+
+No API key needed — set `"codeloopAi.provider": "vscode-lm"` and `"codeloopAi.model"` to a model family (e.g. `gpt-4o`). Requires VS Code 1.90+ with GitHub Copilot installed and signed in.
 
 ## Settings
 
