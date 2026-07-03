@@ -188,24 +188,66 @@ All providers normalize responses to the same format, so the agent loop, safety 
 | Command not in palette | Reload the window after installing the VSIX |
 | Answer rejected warnings in output | Working as intended — the model claimed work it didn't do |
 
-## Project structure
+## Testing
+
+```bash
+npm test
+```
+
+Compiles and runs 23 dependency-free unit tests (`src/test/runTests.ts`) covering mode detection, final-answer validation, action parsing, command risk assessment, and secret redaction. The `vscode` API is stubbed, so tests run in plain Node.
+
+## Architecture
 
 ```
 src/
-  extension.ts               VS Code commands and activation
-  agent/
-    agentLoop.ts             Recursive loop, guards, validation, reflection
-    taskModeDetector.ts      Goal → mode + allowlist mapping
-    instructionLoader.ts     Loads .codeloop instructions
-    responseTemplates.ts     Mode-specific final answer formats
-    salesforceScanner.ts     DX metadata scanner
-    ollamaClient.ts          Ollama /api/chat client (structured output)
-    prompts.ts               System/observation/reflection prompts
-    tools.ts                 read/search/write/run + risk assessment
-    memory.ts                .agent-memory file management
-  types/agentTypes.ts        Shared types
-.codeloop/                   Salesforce instructions, agents, prompts, skills
+  extension.ts                  Entry point: commands, settings → AgentConfig/LoopConfig
+  agent/                        THE AGENT
+    agentLoop.ts                Core loop: Think→Act→Observe→Reflect; mode/duplicate/
+                                no-progress guards, explain auto-stop, final answer
+                                validation, forced wrap-up, evidence filtering
+    taskModeDetector.ts         Goal → 9 task modes + agent/prompt/skills + allowlist
+    instructionLoader.ts        Loads .codeloop/ instructions (safe, traversal-blocked)
+    prompts.ts                  System/mode/observation/rejection/reflection prompts
+    responseTemplates.ts        Fixed final-answer formats per mode (12/15/8/9 sections)
+    tools.ts                    Tool implementations: read (sensitive-path block),
+                                search (SF-aware), create/replace/range/patch edits
+                                with approval previews, run_command risk levels
+    salesforceScanner.ts        DX scanner: counts, patterns, object/trigger/flow
+                                summaries, Apex risk scan, test mapping
+    memory.ts                   .agent-memory files, structured reflections, redaction
+  llm/                          MODEL PROVIDERS (swap via codeloopAi.provider)
+    ModelProvider.ts            Interface: name, chat(), healthCheck()
+    ProviderFactory.ts          Setting → concrete provider
+    OllamaProvider.ts           Local Ollama (default, structured output)
+    AnthropicProvider.ts        Claude Messages API
+    OpenAIProvider.ts           OpenAI Chat Completions
+    VsCodeLanguageModelProvider.ts  vscode.lm / Copilot models
+  tools/                        TOOL ABSTRACTION (MCP-ready)
+    ToolProvider.ts             ToolCall / ToolResult / ToolProvider interfaces
+    ToolRegistry.ts             Registration, discovery, allowlist enforcement
+    NativeToolProvider.ts       Routes the 8 built-in tools
+    McpToolProvider.ts          MCP stub — external tools plug in here later
+  types/agentTypes.ts           Shared types, action JSON schema, LoopConfig
+  test/runTests.ts              Unit tests (npm test)
+.codeloop/                      Salesforce instructions: 1 global + 8 agents +
+                                6 prompts + 6 skills (editable, no code changes)
+.agent-memory/                  Runtime memory in each analyzed project (see Memory)
 ```
+
+Runtime flow for one command:
+
+```
+Command → goal → task mode (allowlist + iteration limit)
+        → .codeloop context injected into system prompt
+        → LOOP: model returns one JSON action
+                → guards (mode / duplicate / no-progress / explain auto-stop)
+                → ToolRegistry → native tools (approval dialogs + safety blocks)
+                → observation (+ session recap + goal anchor) back to model
+        → final_answer validated against actual actions → evidence listed
+        → memory updated: reflection, decisions, failures, action history
+```
+
+Extension seams: a new model provider is one file in `src/llm/` plus a factory case; new tools register in `ToolRegistry`; new agent behavior is a markdown edit in `.codeloop/`.
 
 ## License
 
