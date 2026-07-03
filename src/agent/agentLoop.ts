@@ -2,8 +2,11 @@ import * as vscode from 'vscode';
 import { OllamaClient, AGENT_ACTION_SCHEMA } from './ollamaClient';
 import { AgentMemory, MEMORY_FILES } from './memory';
 import { readFile, searchCode, writeFile, runCommand } from './tools';
+import { detectSalesforceTaskMode, TaskModeResult } from './taskModeDetector';
+import { loadAllSalesforceContext } from './instructionLoader';
 import {
-  ACTION_SYSTEM_PROMPT,
+  buildSystemPrompt,
+  buildModeSection,
   buildInitialPrompt,
   buildObservationPrompt,
   buildRejectedAnswerPrompt,
@@ -12,52 +15,25 @@ import {
 } from './prompts';
 import {
   AgentAction,
-  AgentActionType,
   AgentConfig,
   ActionResult,
   ChatMessage,
-  IterationRecord,
-  TaskMode
+  IterationRecord
 } from '../types/agentTypes';
 
 const JSON_RETRIES = 2;
 const ANSWER_VALIDATION_RETRIES = 2;
 
-const ALLOWED_ACTIONS: Record<TaskMode, AgentActionType[]> = {
-  EXPLAIN_ONLY: ['search_code', 'read_file', 'final_answer'],
-  MODIFY_CODE: ['search_code', 'read_file', 'write_file', 'run_command', 'final_answer'],
-  CREATE_TEST: ['search_code', 'read_file', 'write_file', 'run_command', 'final_answer'],
-  RUN_TESTS: ['search_code', 'read_file', 'run_command', 'final_answer'],
-  DEBUG: ['search_code', 'read_file', 'run_command', 'final_answer']
-};
-
-/** Detect the task mode from the user's goal (checked before the loop starts). */
-export function detectTaskMode(goal: string): TaskMode {
-  const g = goal.toLowerCase();
-  if (/\b(create|write|add|generate|build)\b[^.]*\btest(s| class| classes| coverage| method)?\b/.test(g)) {
-    return 'CREATE_TEST';
-  }
-  if (/\b(run|execute)\b[^.]*\btests?\b/.test(g) || /\bvalidate\b[^.]*\bdeploy/.test(g) || /\bdeploy(ment)?\b/.test(g)) {
-    return 'RUN_TESTS';
-  }
-  if (/\b(modify|refactor|update|fix|change|implement|rename|migrate|create|add|write|generate|build)\b/.test(g)) {
-    return 'MODIFY_CODE';
-  }
-  if (/\b(debug|investigate|troubleshoot)\b/.test(g) || /\b(error|issue|bug|failing|broken)\b/.test(g)) {
-    return 'DEBUG';
-  }
-  // guide / explain / understand / analyze / describe / how does — and the safe default.
-  return 'EXPLAIN_ONLY';
-}
-
 /**
  * Validate a final answer against the session history.
  * Returns claim words that have no matching successful action ([] = valid).
+ * created/updated/modified/wrote/saved require a successful write_file;
+ * ran/executed/tested/deployed require a successful run_command.
  */
 export function validateFinalAnswer(answer: string, hadWrite: boolean, hadRun: boolean): string[] {
   const violations: string[] = [];
   const writeClaims = answer.match(/\b(created|updated|modified|wrote|saved)\b/gi) ?? [];
-  const runClaims = answer.match(/\b(ran|executed|deployed)\b/gi) ?? [];
+  const runClaims = answer.match(/\b(ran|executed|tested|deployed)\b/gi) ?? [];
   if (writeClaims.length > 0 && !hadWrite) {
     violations.push(...new Set(writeClaims.map(w => w.toLowerCase())));
   }
@@ -86,8 +62,24 @@ export async function runAgentLoop(
   progress.report({ message: 'Checking Ollama...' });
   await client.healthCheck(); // Throws OllamaError with a clear message if not available.
 
-  const mode = detectTaskMode(goal);
-  output.appendLine(`Task mode: ${mode} (allowed: ${ALLOWED_ACTIONS[mode].join(', ')})`);
+  // 1. Detect the Salesforce task mode from the goal.
+  const modeResult: TaskModeResult = detectSalesforceTaskMode(goal);
+  output.appendLine(`Task mode: ${modeResult.mode}`);
+  output.appendLine(`  agent: ${modeResult.agentName || '(none)'} | prompt: ${modeResult.promptName || '(none)'} | skills: ${modeResult.skillNames.join(', ') || '(none)'}`);
+  output.appendLine(`  allowed actions: ${modeResult.allowedActions.join(', ')}`);
+
+  // 2. Load .codeloop instructions for the detected mode (missing files load as '').
+  progress.report({ message: 'Loading Salesforce instructions...' });
+  const sfContext = await loadAllSalesforceContext(workspaceRoot, {
+    agentName: modeResult.agentName,
+    promptName: modeResult.promptName,
+    skillNames: modeResult.skillNames
+  });
+  output.appendLine(
+    sfContext.combined
+      ? `Loaded .codeloop context (${sfContext.combined.length} chars, ${sfContext.skills.length} skill file(s)).`
+      : 'No .codeloop instruction files found — using base prompt only.'
+  );
 
   // Memory-informed planning: read rules/summary/patterns before the first step.
   const [rules, summary, patterns] = await Promise.all([
@@ -96,9 +88,11 @@ export async function runAgentLoop(
     memory.read(MEMORY_FILES.learnedPatterns)
   ]);
 
+  // 3. System prompt = base rules + loaded Salesforce context.
+  const modeSection = buildModeSection(modeResult.mode, modeResult.allowedActions);
   const messages: ChatMessage[] = [
-    { role: 'system', content: ACTION_SYSTEM_PROMPT },
-    { role: 'user', content: buildInitialPrompt(goal, mode, rules, summary, patterns) }
+    { role: 'system', content: buildSystemPrompt(sfContext.combined) },
+    { role: 'user', content: buildInitialPrompt(goal, modeSection, rules, summary, patterns) }
   ];
 
   const history: IterationRecord[] = [];
@@ -153,10 +147,10 @@ export async function runAgentLoop(
       break;
     }
 
-    // MODE GUARD: block disallowed actions instead of executing them.
-    if (!ALLOWED_ACTIONS[mode].includes(action.action)) {
-      const observation = `Action "${action.action}" is BLOCKED in ${mode} mode. Allowed actions: ${ALLOWED_ACTIONS[mode].join(', ')}. Stay on the original goal.`;
-      output.appendLine(`Blocked: ${observation}`);
+    // 4. MODE GUARD: block actions outside the mode's allowlist.
+    if (!modeResult.allowedActions.includes(action.action)) {
+      const observation = `Action "${action.action}" was BLOCKED due to task mode ${modeResult.mode}. Allowed actions: ${modeResult.allowedActions.join(', ')}. Choose a valid action and stay on the original goal.`;
+      output.appendLine(`Blocked: ${action.action} (mode ${modeResult.mode})`);
       messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, observation) });
       continue;
     }
