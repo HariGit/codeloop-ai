@@ -327,9 +327,9 @@ async function executeAction(action: AgentAction, workspaceRoot: string): Promis
     case 'search_code':
       return searchCode(workspaceRoot, action.query!);
     case 'write_file':
-      return writeFile(workspaceRoot, action.path!, action.content!);
+      return writeFile(workspaceRoot, action.path!, action.content!, action.thought);
     case 'run_command':
-      return runCommand(workspaceRoot, action.command!);
+      return runCommand(workspaceRoot, action.command!, action.thought);
     default:
       return { success: false, observation: `Unknown action: ${action.action}` };
   }

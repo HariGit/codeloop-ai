@@ -8,6 +8,7 @@ const MAX_FILE_CHARS = 50000;
 const MAX_CMD_OUTPUT_CHARS = 12000;
 const MAX_SEARCH_RESULTS = 25;
 const COMMAND_TIMEOUT_MS = 60000;
+const PREVIEW_CHARS = 400;
 
 const SF_BASE = path.join('force-app', 'main', 'default');
 
@@ -18,7 +19,86 @@ const SEARCH_EXCLUDE =
 /** Salesforce metadata types first, plus common general extensions. */
 const SEARCH_INCLUDE = '**/*.{cls,trigger,page,component,xml,js,html,css,apex,cmp,ts,json,md}';
 
-const DANGEROUS_COMMAND = /\b(rm\s+-rf|rmdir|del\s+\/|format\s|mkfs|curl[^|]*\|\s*(ba)?sh|wget[^|]*\|\s*(ba)?sh|iwr[^|]*\|\s*iex)\b/i;
+// ---------------------------------------------------------------------------
+// Command risk assessment
+// ---------------------------------------------------------------------------
+
+export interface CommandRisk {
+  level: 'LOW' | 'MEDIUM' | 'HIGH';
+  blocked: boolean;
+  note: string;
+}
+
+/** Always blocked — never executed, regardless of approval. */
+const BLOCKED_PATTERNS: Array<{ pattern: RegExp; note: string }> = [
+  { pattern: /\brm\s+-[a-z]*r[a-z]*f|\brm\s+-[a-z]*f[a-z]*r/i, note: 'recursive force delete (rm -rf)' },
+  { pattern: /\bdel\s+\/s\b/i, note: 'recursive delete (del /s)' },
+  { pattern: /^\s*format\b|\bformat\s+[a-z]:/i, note: 'disk format' },
+  { pattern: /\bmkfs\b/i, note: 'filesystem format' },
+  { pattern: /\bgit\s+reset\s+--hard\b/i, note: 'git reset --hard discards uncommitted work' },
+  { pattern: /\bgit\s+clean\b[^&|;]*-[a-z]*f/i, note: 'git clean -f deletes untracked files' },
+  { pattern: /\b(curl|wget)\b[^|]*\|\s*(ba|z)?sh\b/i, note: 'remote script piped to shell' },
+  { pattern: /\biwr\b[^|]*\|\s*iex\b/i, note: 'remote script piped to shell' },
+  { pattern: /\bnpm\s+install\b[^\n]*(https?:\/\/|git\+|git:\/\/|\.tgz)/i, note: 'npm install from unknown remote source' }
+];
+
+/** High risk — approval dialog highlights these; Salesforce deploys always land here. */
+const HIGH_RISK_PATTERNS: Array<{ pattern: RegExp; note: string }> = [
+  { pattern: /\bsfdx\s+force:source:deploy\b/i, note: 'Salesforce deployment — verify target org' },
+  { pattern: /\bsfdx\s+force:mdapi:deploy\b/i, note: 'Salesforce deployment — verify target org' },
+  { pattern: /\bsf\s+project\s+deploy\b/i, note: 'Salesforce deployment — verify target org' },
+  { pattern: /\bsf\s+org\s+(delete|create)\b/i, note: 'org lifecycle command' },
+  { pattern: /\bsf\s+data\s+(delete|update|create|import)\b/i, note: 'modifies org data' },
+  { pattern: /\bnpm\s+install\b/i, note: 'installs packages' },
+  { pattern: /\bgit\s+push\b/i, note: 'pushes to remote' }
+];
+
+const LOW_RISK_PATTERN =
+  /^\s*(ls|dir|cat|type|head|tail|grep|findstr|pwd|echo|git\s+(status|log|diff|branch|show)|sf\s+org\s+list|sf\s+org\s+display|sfdx\s+force:org:list)\b/i;
+
+/** Classify a command: blocked / HIGH / MEDIUM / LOW. */
+export function assessCommandRisk(command: string): CommandRisk {
+  for (const b of BLOCKED_PATTERNS) {
+    if (b.pattern.test(command)) {
+      return { level: 'HIGH', blocked: true, note: b.note };
+    }
+  }
+  for (const h of HIGH_RISK_PATTERNS) {
+    if (h.pattern.test(command)) {
+      return { level: 'HIGH', blocked: false, note: h.note };
+    }
+  }
+  if (LOW_RISK_PATTERN.test(command)) {
+    return { level: 'LOW', blocked: false, note: 'read-only command' };
+  }
+  return { level: 'MEDIUM', blocked: false, note: '' };
+}
+
+// ---------------------------------------------------------------------------
+// Action history log (.agent-memory/action-history.md)
+// ---------------------------------------------------------------------------
+
+async function logAction(
+  workspaceRoot: string,
+  tool: string,
+  target: string,
+  decision: 'APPROVED' | 'REJECTED' | 'BLOCKED',
+  extra = ''
+): Promise<void> {
+  try {
+    const dir = path.join(workspaceRoot, '.agent-memory');
+    await fs.mkdir(dir, { recursive: true });
+    const file = path.join(dir, 'action-history.md');
+    if (!(await fileExists(file))) {
+      await fs.writeFile(file, '# Action History\n\nApproved, rejected, and blocked agent actions.\n\n', 'utf8');
+    }
+    const cleanTarget = target.replace(/\s+/g, ' ').slice(0, 160);
+    const line = `- ${new Date().toISOString()} | ${tool} | ${cleanTarget} | ${decision}${extra ? ` | ${extra}` : ''}\n`;
+    await fs.appendFile(file, line, 'utf8');
+  } catch {
+    // Logging must never break the tool itself.
+  }
+}
 
 /** Resolve a relative path and refuse anything outside the workspace. */
 function resolveSafe(workspaceRoot: string, relPath: string): string {
@@ -185,8 +265,14 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
 // write_file / run_command
 // ---------------------------------------------------------------------------
 
-/** write_file — requires user confirmation. */
-export async function writeFile(workspaceRoot: string, relPath: string, content: string): Promise<ActionResult> {
+// write_file — approval with path, reason, and preview
+
+export async function writeFile(
+  workspaceRoot: string,
+  relPath: string,
+  content: string,
+  reason = ''
+): Promise<ActionResult> {
   let full: string;
   try {
     full = resolveSafe(workspaceRoot, relPath);
@@ -194,53 +280,75 @@ export async function writeFile(workspaceRoot: string, relPath: string, content:
     return { success: false, observation: (err as Error).message };
   }
 
-  let exists = true;
-  try {
-    await fs.access(full);
-  } catch {
-    exists = false;
-  }
+  const exists = await fileExists(full);
+  const preview = content.slice(0, PREVIEW_CHARS) + (content.length > PREVIEW_CHARS ? '\n…(truncated)' : '');
+  const detail = [
+    `File: ${relPath}`,
+    `Reason: ${reason || '(no reason provided)'}`,
+    `Change: ${exists ? 'OVERWRITE existing file' : 'create new file'} (${content.length} chars)`,
+    '',
+    'Preview:',
+    preview
+  ].join('\n');
 
   const choice = await vscode.window.showWarningMessage(
-    `CodeLoop AI wants to ${exists ? 'OVERWRITE' : 'create'} "${relPath}" (${content.length} chars). Allow?`,
-    { modal: true },
-    'Allow',
-    'Deny'
+    `CodeLoop AI wants to ${exists ? 'overwrite' : 'create'} a file. Approve?`,
+    { modal: true, detail },
+    'Approve',
+    'Reject'
   );
-  if (choice !== 'Allow') {
-    return { success: false, observation: `User denied writing to ${relPath}.` };
+  if (choice !== 'Approve') {
+    await logAction(workspaceRoot, 'write_file', relPath, 'REJECTED', reason);
+    return { success: false, observation: `User rejected writing to ${relPath}.` };
   }
 
   try {
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, content, 'utf8');
+    await logAction(workspaceRoot, 'write_file', relPath, 'APPROVED', `wrote ${content.length} chars`);
     return { success: true, observation: `Wrote ${content.length} chars to ${relPath}.` };
   } catch (err) {
     return { success: false, observation: `Failed to write ${relPath}: ${(err as Error).message}` };
   }
 }
 
-/** run_command — requires user confirmation; blocks obviously dangerous commands. */
-export async function runCommand(workspaceRoot: string, command: string): Promise<ActionResult> {
+// run_command — approval with command, reason, and risk level
+
+export async function runCommand(
+  workspaceRoot: string,
+  command: string,
+  reason = ''
+): Promise<ActionResult> {
   if (!command.trim()) {
     return { success: false, observation: 'Empty command.' };
   }
-  if (DANGEROUS_COMMAND.test(command)) {
+
+  const risk = assessCommandRisk(command);
+  if (risk.blocked) {
+    await logAction(workspaceRoot, 'run_command', command, 'BLOCKED', risk.note);
     return {
       success: false,
-      observation: `Command blocked by safety rules (destructive or remote-install pattern): ${command}`
+      observation: `Command BLOCKED by safety rules (${risk.note}): ${command}. This command can never be executed by the agent.`
     };
   }
 
+  const detail = [
+    `Command: ${command}`,
+    `Reason: ${reason || '(no reason provided)'}`,
+    `Risk level: ${risk.level}${risk.note ? ` — ${risk.note}` : ''}`
+  ].join('\n');
+
   const choice = await vscode.window.showWarningMessage(
-    `CodeLoop AI wants to run: ${command}`,
-    { modal: true },
-    'Allow',
-    'Deny'
+    `CodeLoop AI wants to run a ${risk.level} risk command. Approve?`,
+    { modal: true, detail },
+    'Approve',
+    'Reject'
   );
-  if (choice !== 'Allow') {
-    return { success: false, observation: 'User denied running the command.' };
+  if (choice !== 'Approve') {
+    await logAction(workspaceRoot, 'run_command', command, 'REJECTED', reason);
+    return { success: false, observation: 'User rejected running the command.' };
   }
+  await logAction(workspaceRoot, 'run_command', command, 'APPROVED', `risk ${risk.level}`);
 
   return new Promise<ActionResult>(resolve => {
     exec(
