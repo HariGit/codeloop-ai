@@ -78,3 +78,29 @@ export interface AgentConfig {
   model: string;
   maxIterations: number;
 }
+
+/** Selection of Salesforce instruction files to load from .codeloop/. */
+export interface SalesforceContextOptions {
+  /** Agent file name, e.g. "apex-developer" (suffix optional). */
+  agentName?: string;
+  /** Prompt template name, e.g. "explain-apex-class" (suffix optional). */
+  promptName?: string;
+  /** Skill file names, e.g. ["apex-testing", "salesforce-security"]. */
+  skillNames?: string[];
+}
+
+/** One loaded skill file. */
+export interface LoadedSkill {
+  name: string;
+  content: string;
+}
+
+/** Combined Salesforce instruction context loaded from .codeloop/. */
+export interface SalesforceContext {
+  globalInstructions: string;
+  agentInstruction: string;
+  promptTemplate: string;
+  skills: LoadedSkill[];
+  /** All sections combined into one prompt-ready text block ('' if nothing found). */
+  combined: string;
+}
