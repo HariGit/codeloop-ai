@@ -73,11 +73,37 @@ export interface OllamaChatResponse {
   error?: string;
 }
 
+/** Supported model backends. Only "ollama" is implemented today. */
+export type ModelProviderName = 'ollama' | 'anthropic' | 'openai' | 'vscode-lm';
+
 export interface AgentConfig {
-  endpoint: string;
+  provider: ModelProviderName;
+  /** Endpoint override (used by Ollama; optional for API providers). */
+  endpoint?: string;
   model: string;
+  /** API key for cloud providers (unused by Ollama). */
+  apiKey?: string;
   maxIterations: number;
 }
+
+/** JSON schema for AgentAction — passed to providers that support structured output. */
+export const AGENT_ACTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    thought: { type: 'string' },
+    action: {
+      type: 'string',
+      enum: ['read_file', 'search_code', 'write_file', 'run_command', 'final_answer']
+    },
+    path: { type: 'string' },
+    query: { type: 'string' },
+    content: { type: 'string' },
+    command: { type: 'string' },
+    answer: { type: 'string' },
+    evidence: { type: 'array', items: { type: 'string' } }
+  },
+  required: ['thought', 'action']
+} as const;
 
 /** Selection of Salesforce instruction files to load from .codeloop/. */
 export interface SalesforceContextOptions {

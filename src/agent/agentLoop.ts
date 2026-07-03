@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { OllamaClient, AGENT_ACTION_SCHEMA } from './ollamaClient';
+import { ModelProvider } from '../llm/ModelProvider';
+import { createModelProvider } from '../llm/ProviderFactory';
 import { AgentMemory, MEMORY_FILES } from './memory';
 import { readFile, searchCode, writeFile, runCommand } from './tools';
 import { detectSalesforceTaskMode, TaskModeResult } from './taskModeDetector';
@@ -18,7 +19,8 @@ import {
   AgentConfig,
   ActionResult,
   ChatMessage,
-  IterationRecord
+  IterationRecord,
+  AGENT_ACTION_SCHEMA
 } from '../types/agentTypes';
 
 const JSON_RETRIES = 2;
@@ -55,11 +57,11 @@ export async function runAgentLoop(
   progress: vscode.Progress<{ message?: string }>,
   token: vscode.CancellationToken
 ): Promise<void> {
-  const client = new OllamaClient(config);
+  const client = createModelProvider(config);
   const memory = new AgentMemory(workspaceRoot);
   await memory.init();
 
-  progress.report({ message: 'Checking Ollama...' });
+  progress.report({ message: `Checking model provider (${client.name})...` });
   await client.healthCheck(); // Throws OllamaError with a clear message if not available.
 
   // 1. Detect the Salesforce task mode from the goal.
@@ -322,7 +324,7 @@ function filterEvidence(evidence: string[] | undefined, history: IterationRecord
 
 /** Ask the model for the next action; structured output + retry when JSON is invalid. */
 async function getAction(
-  client: OllamaClient,
+  client: ModelProvider,
   messages: ChatMessage[],
   output: vscode.OutputChannel,
   memory: AgentMemory,

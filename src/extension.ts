@@ -41,8 +41,10 @@ export function activate(context: vscode.ExtensionContext): void {
 function getConfig(): AgentConfig {
   const cfg = vscode.workspace.getConfiguration('codeloopAi');
   return {
+    provider: cfg.get<AgentConfig['provider']>('provider', 'ollama'),
     endpoint: cfg.get<string>('ollamaEndpoint', 'http://localhost:11434/api/chat'),
     model: cfg.get<string>('model', 'qwen3-coder:latest'),
+    apiKey: cfg.get<string>('apiKey', '') || undefined,
     maxIterations: Math.max(1, Math.min(cfg.get<number>('maxIterations', 8), 8))
   };
 }

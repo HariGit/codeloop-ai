@@ -1,44 +1,25 @@
 import { ChatMessage, ChatOptions, OllamaChatResponse, AgentConfig } from '../types/agentTypes';
+import { ModelProvider, ProviderError } from './ModelProvider';
 
-/** JSON schema for AgentAction — used with Ollama structured output. */
-export const AGENT_ACTION_SCHEMA = {
-  type: 'object',
-  properties: {
-    thought: { type: 'string' },
-    action: {
-      type: 'string',
-      enum: ['read_file', 'search_code', 'write_file', 'run_command', 'final_answer']
-    },
-    path: { type: 'string' },
-    query: { type: 'string' },
-    content: { type: 'string' },
-    command: { type: 'string' },
-    answer: { type: 'string' },
-    evidence: { type: 'array', items: { type: 'string' } }
-  },
-  required: ['thought', 'action']
-} as const;
-
-/** Error with a user-friendly message for known Ollama failures. */
-export class OllamaError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'OllamaError';
-  }
-}
+const DEFAULT_OLLAMA_ENDPOINT = 'http://localhost:11434/api/chat';
 
 /**
- * Minimal client for the local Ollama /api/chat endpoint.
- * Uses non-streaming responses to keep JSON parsing simple.
+ * Ollama provider — local /api/chat endpoint, non-streaming.
+ * Supports structured output via the "format" field (JSON schema).
  */
-export class OllamaClient {
-  constructor(private readonly config: AgentConfig) {}
+export class OllamaProvider implements ModelProvider {
+  readonly name = 'ollama';
+  private readonly endpoint: string;
+
+  constructor(private readonly config: AgentConfig) {
+    this.endpoint = config.endpoint || DEFAULT_OLLAMA_ENDPOINT;
+  }
 
   /** Send chat messages, return the assistant's text content. */
   async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<string> {
     let response: Response;
     try {
-      response = await fetch(this.config.endpoint, {
+      response = await fetch(this.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -51,41 +32,41 @@ export class OllamaClient {
         })
       });
     } catch {
-      throw new OllamaError(
-        `Cannot reach Ollama at ${this.config.endpoint}. Is Ollama running? Try: ollama serve`
+      throw new ProviderError(
+        `Cannot reach Ollama at ${this.endpoint}. Is Ollama running? Try: ollama serve`
       );
     }
 
     if (response.status === 404) {
       // /api/chat returns 404 when the model is not found.
-      throw new OllamaError(
+      throw new ProviderError(
         `Model "${this.config.model}" not found. Try: ollama pull ${this.config.model}`
       );
     }
     if (!response.ok) {
       const body = await safeText(response);
-      throw new OllamaError(`Ollama returned HTTP ${response.status}: ${body}`);
+      throw new ProviderError(`Ollama returned HTTP ${response.status}: ${body}`);
     }
 
     let data: OllamaChatResponse;
     try {
       data = (await response.json()) as OllamaChatResponse;
     } catch {
-      throw new OllamaError('Ollama returned a non-JSON response.');
+      throw new ProviderError('Ollama returned a non-JSON response.');
     }
 
     if (data.error) {
       if (data.error.includes('not found')) {
-        throw new OllamaError(
+        throw new ProviderError(
           `Model "${this.config.model}" not found. Try: ollama pull ${this.config.model}`
         );
       }
-      throw new OllamaError(`Ollama error: ${data.error}`);
+      throw new ProviderError(`Ollama error: ${data.error}`);
     }
 
     const content = data.message?.content;
     if (!content) {
-      throw new OllamaError('Ollama returned an empty response.');
+      throw new ProviderError('Ollama returned an empty response.');
     }
     return content;
   }

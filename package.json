@@ -46,6 +46,22 @@
     "configuration": {
       "title": "CodeLoop AI",
       "properties": {
+        "codeloopAi.provider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "anthropic",
+            "openai",
+            "vscode-lm"
+          ],
+          "default": "ollama",
+          "description": "Model provider. Only 'ollama' is implemented today; other values are reserved."
+        },
+        "codeloopAi.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for cloud providers (not used by Ollama)."
+        },
         "codeloopAi.ollamaEndpoint": {
           "type": "string",
           "default": "http://localhost:11434/api/chat",
