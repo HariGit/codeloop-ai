@@ -1,6 +1,6 @@
 # CodeLoop AI
 
-A local, Salesforce-aware recursive coding agent for VS Code, powered by your own Ollama model (`qwen3-coder:latest`). No cloud, no API keys, no data leaving your machine. The agent "learns" through markdown memory files — not model training.
+A Salesforce-aware recursive coding agent for VS Code. Runs fully local by default with your own Ollama model (`qwen3-coder:latest`) — no cloud, no API keys, no data leaving your machine. Optionally switch to Claude (Anthropic), OpenAI, or VS Code's built-in Language Model API (Copilot). The agent "learns" through markdown memory files — not model training.
 
 ## How it works
 
@@ -132,12 +132,29 @@ Every approve/reject/block decision is logged to `.agent-memory/action-history.m
 
 All entries are size-capped and secret-redacted (tokens, passwords, API keys never reach memory files).
 
+## Model providers
+
+Ollama (local) is the default. Switch with `codeloopAi.provider`:
+
+| Provider | Setting requirements |
+|---|---|
+| `ollama` (default) | Ollama running locally; `codeloopAi.model` = e.g. `qwen3-coder:latest` |
+| `anthropic` | `codeloopAi.anthropicApiKey`; `codeloopAi.model` = e.g. `claude-sonnet-4-5` |
+| `openai` | `codeloopAi.openAiApiKey`; `codeloopAi.model` = e.g. `gpt-4o` |
+| `vscode-lm` | VS Code 1.90+ with GitHub Copilot installed and signed in; `codeloopAi.model` = model family, e.g. `gpt-4o` |
+
+All providers normalize responses to the same format, so the agent loop, safety guards, and memory behave identically regardless of backend. If a provider is not configured, the agent stops with a clear message telling you which setting to fix.
+
 ## Settings
 
 | Setting | Default |
 |---|---|
-| `codeloopAi.ollamaEndpoint` | `http://localhost:11434/api/chat` |
+| `codeloopAi.provider` | `ollama` |
 | `codeloopAi.model` | `qwen3-coder:latest` |
+| `codeloopAi.ollamaEndpoint` | `http://localhost:11434/api/chat` |
+| `codeloopAi.anthropicApiKey` | (empty — required for provider `anthropic`) |
+| `codeloopAi.openAiApiKey` | (empty — required for provider `openai`) |
+| `codeloopAi.apiKey` | (empty — fallback if a provider-specific key is unset) |
 | `codeloopAi.maxIterations` | `8` (hard cap 8) |
 
 ## Typical workflow

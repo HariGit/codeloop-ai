@@ -55,12 +55,22 @@
             "vscode-lm"
           ],
           "default": "ollama",
-          "description": "Model provider. Only 'ollama' is implemented today; other values are reserved."
+          "description": "Model provider: ollama (local, default), anthropic (Claude), openai, or vscode-lm (VS Code Language Model API / Copilot)."
+        },
+        "codeloopAi.anthropicApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key (used when provider is 'anthropic')."
+        },
+        "codeloopAi.openAiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API key (used when provider is 'openai')."
         },
         "codeloopAi.apiKey": {
           "type": "string",
           "default": "",
-          "description": "API key for cloud providers (not used by Ollama)."
+          "description": "Fallback API key if a provider-specific key is not set."
         },
         "codeloopAi.ollamaEndpoint": {
           "type": "string",
