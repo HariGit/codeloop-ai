@@ -35,6 +35,10 @@
         "title": "CodeLoop AI: Analyze Flow Migration"
       },
       {
+        "command": "codeloop-ai.architectureOverview",
+        "title": "CodeLoop AI: Architecture Overview"
+      },
+      {
         "command": "codeloop-ai.analyzeDebugLog",
         "title": "CodeLoop AI: Analyze Apex Debug Log"
       },
@@ -134,7 +138,8 @@
             "INTEGRATION_API": 8,
             "DEPLOYMENT_REVIEW": 6,
             "GENERAL_SALESFORCE": 6,
-            "DEBUG_LOG_ANALYSIS": 6
+            "DEBUG_LOG_ANALYSIS": 6,
+            "ARCHITECTURE_OVERVIEW": 8
           },
           "description": "Per-task-mode iteration limits (capped by absoluteMaxIterations)."
         }

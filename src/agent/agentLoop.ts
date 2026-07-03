@@ -9,6 +9,7 @@ import { LogLensToolProvider } from '../tools/LogLensToolProvider';
 import { ToolCall } from '../tools/ToolProvider';
 import { detectSalesforceTaskMode, TaskModeResult } from './taskModeDetector';
 import { loadAllSalesforceContext } from './instructionLoader';
+import { analyzeArchitecture } from './architectureAnalyzer';
 import {
   buildSystemPrompt,
   buildModeSection,
@@ -133,8 +134,24 @@ export async function runAgentLoop(
     memory.read(MEMORY_FILES.salesforceDecisions)
   ]);
 
+  // ARCHITECTURE_OVERVIEW: pre-scan the metadata around the scope and hand
+  // the inventory to the model so it knows exactly which files exist.
+  let architectureContext = '';
+  if (modeResult.mode === 'ARCHITECTURE_OVERVIEW') {
+    progress.report({ message: 'Scanning architecture components...' });
+    const arch = await analyzeArchitecture(workspaceRoot, goal);
+    architectureContext = arch.report;
+    if (arch.matchedFiles.length > 0) {
+      output.appendLine(`Architecture pre-scan: ${arch.matchedFiles.length} component(s) matched scope "${arch.scope}".`);
+    } else {
+      output.appendLine('Architecture pre-scan: no components matched — the model will search.');
+    }
+  }
+
   // 3. System prompt = base rules + loaded Salesforce context.
-  const modeSection = buildModeSection(modeResult.mode, modeResult.allowedActions);
+  const modeSection =
+    buildModeSection(modeResult.mode, allowedActions) +
+    (architectureContext ? `\n\n${architectureContext}` : '');
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt(sfContext.combined) },
     // Recent decisions only (tail) to keep the prompt concise.

@@ -68,6 +68,29 @@ export const debugLogTemplate = `FINAL ANSWER FORMAT — structure your final_an
 - Recommended Fix: concrete code-level fix, referencing classes read
 - Evidence Files: the log file analyzed and any classes read`;
 
+export const architectureOverviewTemplate = `FINAL ANSWER FORMAT — structure your final_answer with exactly these sections:
+1. Executive Summary: 3-5 sentences a manager can read
+2. System Design: overall approach and layering in this codebase
+3. High Level Design: major components and how they collaborate
+4. Low Level Design: key classes/methods and their responsibilities
+5. Entry Points: how execution starts (trigger, page, LWC, REST, flow)
+6. Component Dependency Map: who calls whom (text form)
+7. Data Flow: how data moves from entry to persistence
+8. Sequence Flow: ordered steps of the main scenario
+9. Salesforce Objects Used: objects and their role
+10. Apex Classes Used: each class with one-line responsibility
+11. LWC / Visualforce / Flow Components: UI and automation pieces
+12. Integration Points: REST resources, callouts, external systems
+13. Security / Sharing Considerations: sharing declarations, CRUD/FLS
+14. Risks: architectural weaknesses observed
+15. Recommended Target Architecture: how it should evolve
+16. Mermaid Flow Diagram: a \`\`\`mermaid flowchart TD code block
+17. Mermaid Sequence Diagram: a \`\`\`mermaid sequenceDiagram code block
+18. Evidence Files: files actually read in this session
+
+Mermaid rules: put diagrams ONLY in the final answer, each in its own
+\`\`\`mermaid code block, using component names found in the code.`;
+
 /** Template for a task mode; '' when the mode has no fixed format. */
 export function getResponseTemplate(mode: string): string {
   switch (mode) {
@@ -75,6 +98,8 @@ export function getResponseTemplate(mode: string): string {
       return explainApexTemplate;
     case 'DEBUG_LOG_ANALYSIS':
       return debugLogTemplate;
+    case 'ARCHITECTURE_OVERVIEW':
+      return architectureOverviewTemplate;
     case 'FLOW_MIGRATION':
       return flowMigrationTemplate;
     case 'CREATE_TEST':

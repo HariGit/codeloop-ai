@@ -16,6 +16,7 @@ export type SalesforceTaskMode =
   | 'INTEGRATION_API'
   | 'DEPLOYMENT_REVIEW'
   | 'DEBUG_LOG_ANALYSIS'
+  | 'ARCHITECTURE_OVERVIEW'
   | 'GENERAL_SALESFORCE';
 
 export interface TaskModeResult {
@@ -84,6 +85,12 @@ const MODE_MAP: Record<SalesforceTaskMode, Omit<TaskModeResult, 'mode'>> = {
     skillNames: ['apex-trigger-framework'],
     allowedActions: ['search_code', 'read_file', 'analyze_debug_log', 'final_answer']
   },
+  ARCHITECTURE_OVERVIEW: {
+    agentName: 'architecture-overview',
+    promptName: 'architecture-overview',
+    skillNames: ['system-design', 'hld-lld', 'apex-trigger-framework'],
+    allowedActions: [...READ_ONLY]
+  },
   GENERAL_SALESFORCE: {
     agentName: 'salesforce-architect',
     promptName: '',
@@ -99,11 +106,14 @@ const RESTRICTED_MODES: SalesforceTaskMode[] = [
   'FLOW_MIGRATION',
   'DEPLOYMENT_REVIEW',
   'DEBUG_LOG_ANALYSIS',
+  'ARCHITECTURE_OVERVIEW',
   'GENERAL_SALESFORCE'
 ];
 
 /** Keyword rules, checked in order — first match wins. */
 const MODE_RULES: Array<{ mode: SalesforceTaskMode; pattern: RegExp }> = [
+  // Architecture first — "explain the architecture" must not become EXPLAIN_APEX.
+  { mode: 'ARCHITECTURE_OVERVIEW', pattern: /\barchitecture\b|\bsystem\s+design\b|\bhigh\s+level\s+design\b|\blow\s+level\s+design\b|\bhld\b|\blld\b/i },
   // Debug logs first — "analyze debug log" must not be swallowed by other verbs.
   { mode: 'DEBUG_LOG_ANALYSIS', pattern: /\b(debug|apex)\s+logs?\b|\blog\s+analysis\b|\bloglens\b|\banalyz\w*\b[^.]*\blogs?\b|\blogs?\b[^.]*\b(exception|governor|root\s+cause)\b/i },
   // Specific intents first, so "migrate flow" is not swallowed by "modify".
