@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { runAgentLoop } from './agent/agentLoop';
-import { scanSalesforceProject } from './agent/tools';
+import { scanSalesforceProject } from './agent/salesforceScanner';
 import { AgentConfig } from './types/agentTypes';
 
 let output: vscode.OutputChannel;
@@ -76,9 +76,13 @@ async function scanProject(): Promise<void> {
   output.show(true);
   output.appendLine('\nScanning Salesforce project...');
   try {
-    const summary = await scanSalesforceProject(root);
-    output.appendLine(summary);
-    vscode.window.showInformationMessage('CodeLoop AI: Scan saved to .agent-memory/project-summary.md');
+    const result = await scanSalesforceProject(root);
+    output.appendLine(result.summaryMarkdown);
+    if (!result.isSalesforceProject) {
+      vscode.window.showWarningMessage('CodeLoop AI: This does not look like a Salesforce DX project (no sfdx-project.json or force-app/main/default).');
+    } else {
+      vscode.window.showInformationMessage('CodeLoop AI: Scan saved to .agent-memory/project-summary.md');
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     vscode.window.showErrorMessage(`CodeLoop AI scan failed: ${message}`);
