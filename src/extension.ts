@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { runAgentLoop } from './agent/agentLoop';
 import { scanSalesforceProject } from './agent/salesforceScanner';
+import { generateAgentContextFiles, CONTEXT_TARGETS } from './agent/agentContextGenerator';
 import { AgentConfig, DEFAULT_LOOP_CONFIG, LoopConfig } from './types/agentTypes';
 
 let output: vscode.OutputChannel;
@@ -48,8 +49,40 @@ export function activate(context: vscode.ExtensionContext): void {
       )
     ),
     vscode.commands.registerCommand('codeloop-ai.scanSalesforceProject', () => scanProject()),
+    vscode.commands.registerCommand('codeloop-ai.generateAgentContext', () => generateContextFiles()),
     output
   );
+}
+
+/** Compile CodeLoop's knowledge into CLAUDE.md / AGENTS.md / copilot-instructions.md. */
+async function generateContextFiles(): Promise<void> {
+  const root = getWorkspaceRoot();
+  if (!root) {
+    return;
+  }
+  const descriptions: Record<string, string> = {
+    'CLAUDE.md': 'Claude Code reads this on every session',
+    'AGENTS.md': 'Codex and generic coding agents',
+    '.github/copilot-instructions.md': 'GitHub Copilot custom instructions'
+  };
+  const picks = await vscode.window.showQuickPick(
+    CONTEXT_TARGETS.map(t => ({ label: t, description: descriptions[t], picked: true })),
+    { canPickMany: true, title: 'Generate agent context files (existing content outside the CodeLoop block is preserved)' }
+  );
+  if (!picks || picks.length === 0) {
+    return;
+  }
+
+  output.show(true);
+  output.appendLine('\nGenerating agent context files (scanning project first)...');
+  try {
+    const result = await generateAgentContextFiles(root, picks.map(p => p.label));
+    output.appendLine(`Context: ${result.content.length} chars. Files updated: ${result.files.join(', ')}`);
+    vscode.window.showInformationMessage(`CodeLoop AI: agent context written to ${result.files.join(', ')}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    vscode.window.showErrorMessage(`CodeLoop AI: context generation failed: ${message}`);
+  }
 }
 
 function getConfig(): AgentConfig {

@@ -47,6 +47,7 @@ code --install-extension codeloop-ai-0.1.0.vsix
 | **CodeLoop AI: Analyze Apex Debug Log** | log file path | LogLens analysis: root cause, exceptions, governor risks |
 | **CodeLoop AI: Deployment Review** | metadata / release notes | Risk assessment with validate/deploy commands |
 | **CodeLoop AI: Scan Salesforce Project** | — | Deep metadata scan saved to `.agent-memory/project-summary.md` |
+| **CodeLoop AI: Generate Agent Context Files** | pick targets | Compiles CLAUDE.md / AGENTS.md / copilot-instructions.md for other agents |
 
 Output appears in **View → Output → CodeLoop AI**.
 
@@ -131,6 +132,12 @@ Tools: `analyze_debug_log`, `analyze_latest_apex_logs`, `explain_log_flow`, `fin
 ## Architecture Overview
 
 **CodeLoop AI: Architecture Overview** pre-scans the metadata around your scope (classes, triggers, selectors/services/handlers/domains, LWC, Visualforce, flows, objects, custom metadata, labels, REST resources) and injects a component inventory with dependency hints into the prompt. The model reads the key files and produces an 18-section document: Executive Summary through Recommended Target Architecture, ending with Mermaid flowchart and sequence diagrams and Evidence Files. Strictly read-only.
+
+## Agent context files (token saver for Claude Code / Codex / Copilot)
+
+**Generate Agent Context Files** compiles CodeLoop's deterministic knowledge — project shape, architecture patterns, key objects/triggers/flows, top risk warnings, test gaps, your project rules, recent architecture decisions, and coding standards — into the instruction files other agents read on every session: `CLAUDE.md` (Claude Code), `AGENTS.md` (Codex/generic), and `.github/copilot-instructions.md` (Copilot). Those agents start each session already oriented instead of burning thousands of tokens rediscovering the project.
+
+Content is written inside a `<!-- CODELOOP:BEGIN --> … <!-- CODELOOP:END -->` managed block — anything you write outside the block is preserved on regeneration. Re-run the command after big metadata changes.
 
 ## Salesforce-aware search
 

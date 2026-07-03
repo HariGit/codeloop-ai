@@ -49,6 +49,10 @@
       {
         "command": "codeloop-ai.scanSalesforceProject",
         "title": "CodeLoop AI: Scan Salesforce Project"
+      },
+      {
+        "command": "codeloop-ai.generateAgentContext",
+        "title": "CodeLoop AI: Generate Agent Context Files (CLAUDE.md / AGENTS.md / Copilot)"
       }
     ],
     "configuration": {
