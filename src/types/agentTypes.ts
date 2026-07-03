@@ -78,6 +78,44 @@ export interface OllamaChatResponse {
 /** Supported model backends. Only "ollama" is implemented today. */
 export type ModelProviderName = 'ollama' | 'anthropic' | 'openai' | 'vscode-lm';
 
+/** Configurable loop behavior. */
+export interface LoopConfig {
+  /** Max iterations when the task mode has no specific limit. */
+  defaultMaxIterations: number;
+  /** Hard ceiling — no mode or setting may exceed this. */
+  absoluteMaxIterations: number;
+  /** Retries when the model returns invalid JSON. */
+  jsonRetries: number;
+  /** Retries when a final answer fails validation. */
+  answerValidationRetries: number;
+  /** Stop after this many consecutive blocked/duplicate/no-op iterations. */
+  noProgressLimit: number;
+  /** In EXPLAIN_APEX, push for final_answer once enough files are read. */
+  autoStopExplainAfterFiles: boolean;
+  /** Per-mode iteration limits (fall back to defaultMaxIterations). */
+  modeMaxIterations: Record<string, number>;
+}
+
+export const DEFAULT_LOOP_CONFIG: LoopConfig = {
+  defaultMaxIterations: 8,
+  absoluteMaxIterations: 20,
+  jsonRetries: 2,
+  answerValidationRetries: 2,
+  noProgressLimit: 2,
+  autoStopExplainAfterFiles: true,
+  modeMaxIterations: {
+    EXPLAIN_APEX: 4,
+    REVIEW_APEX: 6,
+    MODIFY_APEX: 8,
+    CREATE_TEST: 10,
+    FLOW_MIGRATION: 8,
+    LWC_WORK: 8,
+    INTEGRATION_API: 8,
+    DEPLOYMENT_REVIEW: 6,
+    GENERAL_SALESFORCE: 6
+  }
+};
+
 export interface AgentConfig {
   provider: ModelProviderName;
   /** Endpoint override (used by Ollama; optional for API providers). */
@@ -85,7 +123,10 @@ export interface AgentConfig {
   model: string;
   /** API key for cloud providers (unused by Ollama). */
   apiKey?: string;
+  /** Legacy default max iterations (kept for backward compatibility). */
   maxIterations: number;
+  /** Loop behavior; DEFAULT_LOOP_CONFIG is used when absent. */
+  loop?: LoopConfig;
 }
 
 /** JSON schema for AgentAction — passed to providers that support structured output. */

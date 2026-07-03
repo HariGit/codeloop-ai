@@ -85,7 +85,53 @@
         "codeloopAi.maxIterations": {
           "type": "number",
           "default": 8,
-          "description": "Maximum agent loop iterations"
+          "description": "Maximum agent loop iterations",
+          "deprecationMessage": "Deprecated: use codeloopAi.loop.defaultMaxIterations instead."
+        },
+        "codeloopAi.loop.defaultMaxIterations": {
+          "type": "number",
+          "default": 8,
+          "description": "Max iterations when the task mode has no specific limit."
+        },
+        "codeloopAi.loop.absoluteMaxIterations": {
+          "type": "number",
+          "default": 20,
+          "description": "Hard ceiling on iterations \u2014 no mode may exceed this."
+        },
+        "codeloopAi.loop.jsonRetries": {
+          "type": "number",
+          "default": 2,
+          "description": "Retries when the model returns invalid JSON."
+        },
+        "codeloopAi.loop.answerValidationRetries": {
+          "type": "number",
+          "default": 2,
+          "description": "Retries when a final answer fails validation (empty or unverified claims)."
+        },
+        "codeloopAi.loop.noProgressLimit": {
+          "type": "number",
+          "default": 2,
+          "description": "Stop after this many consecutive blocked/duplicate/no-op iterations."
+        },
+        "codeloopAi.loop.autoStopExplainAfterFiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "In EXPLAIN_APEX mode, push for the final answer once enough files are read."
+        },
+        "codeloopAi.loop.modeMaxIterations": {
+          "type": "object",
+          "default": {
+            "EXPLAIN_APEX": 4,
+            "REVIEW_APEX": 6,
+            "MODIFY_APEX": 8,
+            "CREATE_TEST": 10,
+            "FLOW_MIGRATION": 8,
+            "LWC_WORK": 8,
+            "INTEGRATION_API": 8,
+            "DEPLOYMENT_REVIEW": 6,
+            "GENERAL_SALESFORCE": 6
+          },
+          "description": "Per-task-mode iteration limits (capped by absoluteMaxIterations)."
         }
       }
     }

@@ -23,11 +23,19 @@ import {
   ActionResult,
   ChatMessage,
   IterationRecord,
-  AGENT_ACTION_SCHEMA
+  AGENT_ACTION_SCHEMA,
+  LoopConfig,
+  DEFAULT_LOOP_CONFIG
 } from '../types/agentTypes';
 
-const JSON_RETRIES = 2;
-const ANSWER_VALIDATION_RETRIES = 2;
+/** In EXPLAIN_APEX, stop gathering after this many files (when auto-stop is on). */
+const EXPLAIN_FILE_LIMIT = 3;
+
+/** Resolve the mode's max iterations, never exceeding the absolute cap. */
+export function resolveMaxIterations(loop: LoopConfig, mode: string): number {
+  const modeMax = loop.modeMaxIterations?.[mode] ?? loop.defaultMaxIterations;
+  return Math.max(1, Math.min(modeMax, loop.absoluteMaxIterations));
+}
 
 /**
  * Validate a final answer against the session history.
@@ -74,7 +82,14 @@ export async function runAgentLoop(
 
   // 1. Detect the Salesforce task mode from the goal.
   const modeResult: TaskModeResult = detectSalesforceTaskMode(goal);
+  const loopCfg: LoopConfig = config.loop ?? {
+    ...DEFAULT_LOOP_CONFIG,
+    // Backward compatibility: honor the legacy maxIterations setting.
+    defaultMaxIterations: config.maxIterations || DEFAULT_LOOP_CONFIG.defaultMaxIterations
+  };
+  const effectiveMaxIterations = resolveMaxIterations(loopCfg, modeResult.mode);
   output.appendLine(`Task mode: ${modeResult.mode}`);
+  output.appendLine(`  max iterations: ${effectiveMaxIterations} (mode limit, absolute cap ${loopCfg.absoluteMaxIterations})`);
   output.appendLine(`  agent: ${modeResult.agentName || '(none)'} | prompt: ${modeResult.promptName || '(none)'} | skills: ${modeResult.skillNames.join(', ') || '(none)'}`);
   output.appendLine(`  allowed actions: ${modeResult.allowedActions.join(', ')}`);
 
@@ -113,20 +128,21 @@ export async function runAgentLoop(
   let hadSuccessfulWrite = false;
   let hadSuccessfulRun = false;
   let answerRejections = 0;
+  let noProgressCount = 0;
   let finalAnswer: string | undefined;
   let finalEvidence: string[] = [];
 
-  for (let i = 1; i <= config.maxIterations; i++) {
+  for (let i = 1; i <= effectiveMaxIterations; i++) {
     if (token.isCancellationRequested) {
       output.appendLine('\nCancelled by user.');
       break;
     }
 
-    progress.report({ message: `Iteration ${i}/${config.maxIterations}: thinking...` });
-    output.appendLine(`\n--- Iteration ${i}/${config.maxIterations} ---`);
+    progress.report({ message: `Iteration ${i}/${effectiveMaxIterations}: thinking...` });
+    output.appendLine(`\n--- Iteration ${i}/${effectiveMaxIterations} ---`);
 
     // THINK: get a JSON action from the model (structured output + retries).
-    const action = await getAction(client, messages, output, memory, goal, i);
+    const action = await getAction(client, messages, output, memory, goal, i, loopCfg.jsonRetries);
     if (!action) {
       await memory.saveFailedAttempt(goal, `Iteration ${i}: model kept returning invalid JSON. Aborted.`);
       throw new Error('Model returned invalid JSON repeatedly. Try again or check the model.');
@@ -140,7 +156,7 @@ export async function runAgentLoop(
     if (action.action === 'final_answer') {
       const answerText = (action.answer ?? '').trim();
       // Empty answers are rejected — the model must actually answer.
-      if (!answerText && answerRejections < ANSWER_VALIDATION_RETRIES) {
+      if (!answerText && answerRejections < loopCfg.answerValidationRetries) {
         answerRejections++;
         output.appendLine('Final answer REJECTED (empty answer text). Asking for a complete answer...');
         messages.push({
@@ -152,7 +168,7 @@ export async function runAgentLoop(
       }
       const answer = answerText || '(no answer text provided)';
       const violations = validateFinalAnswer(answer, hadSuccessfulWrite, hadSuccessfulRun);
-      if (violations.length > 0 && answerRejections < ANSWER_VALIDATION_RETRIES) {
+      if (violations.length > 0 && answerRejections < loopCfg.answerValidationRetries) {
         answerRejections++;
         output.appendLine(
           `Final answer REJECTED (claims without matching action: ${violations.join(', ')}). Asking for a corrected answer...`
@@ -177,7 +193,33 @@ export async function runAgentLoop(
       const observation = `Action "${action.action}" was BLOCKED due to task mode ${modeResult.mode}. Allowed actions: ${modeResult.allowedActions.join(', ')}. Choose a valid action and stay on the original goal.`;
       output.appendLine(`Blocked: ${action.action} (mode ${modeResult.mode})`);
       await memory.saveFailedAttempt(goal, `Iteration ${i}: action "${action.action}" blocked in ${modeResult.mode} mode.`);
-      messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, observation) });
+      messages.push({ role: 'user', content: buildObservationPrompt(goal, i, effectiveMaxIterations, observation) });
+      noProgressCount++;
+      if (noProgressCount >= loopCfg.noProgressLimit) {
+        output.appendLine(`\nStopping: no progress after ${noProgressCount} blocked/duplicate iterations.`);
+        await memory.saveFailedAttempt(goal, `Stopped: no progress after ${noProgressCount} blocked/duplicate iterations.`);
+        break;
+      }
+      continue;
+    }
+
+    // EXPLAIN AUTO-STOP: once enough files are read, push for the final answer.
+    const filesReadSoFar = history.filter(h => h.success && h.action === 'read_file').length;
+    if (
+      loopCfg.autoStopExplainAfterFiles &&
+      modeResult.mode === 'EXPLAIN_APEX' &&
+      (action.action === 'read_file' || action.action === 'search_code') &&
+      filesReadSoFar >= EXPLAIN_FILE_LIMIT
+    ) {
+      const observation = `You have already read ${filesReadSoFar} files — enough to explain. Do not gather more. Provide final_answer now based on what you observed.`;
+      output.appendLine(`Auto-stop: ${filesReadSoFar} files read in EXPLAIN_APEX — asking for final answer.`);
+      messages.push({ role: 'user', content: buildObservationPrompt(goal, i, effectiveMaxIterations, observation) });
+      noProgressCount++;
+      if (noProgressCount >= loopCfg.noProgressLimit) {
+        output.appendLine(`\nStopping: no progress after ${noProgressCount} blocked/duplicate iterations.`);
+        await memory.saveFailedAttempt(goal, `Stopped: model kept gathering files in EXPLAIN_APEX instead of answering.`);
+        break;
+      }
       continue;
     }
 
@@ -187,7 +229,13 @@ export async function runAgentLoop(
     if (previous && (action.action === 'read_file' || action.action === 'search_code')) {
       const observation = `You already performed this exact action earlier. Previous result:\n${previous}`;
       output.appendLine('Duplicate action — replayed earlier observation.');
-      messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, observation) });
+      messages.push({ role: 'user', content: buildObservationPrompt(goal, i, effectiveMaxIterations, observation) });
+      noProgressCount++;
+      if (noProgressCount >= loopCfg.noProgressLimit) {
+        output.appendLine(`\nStopping: no progress after ${noProgressCount} blocked/duplicate iterations.`);
+        await memory.saveFailedAttempt(goal, `Stopped: no progress after ${noProgressCount} blocked/duplicate iterations.`);
+        break;
+      }
       continue;
     }
 
@@ -196,6 +244,7 @@ export async function runAgentLoop(
     const result = await registry.execute(toToolCall(action), modeResult.allowedActions);
     output.appendLine(`Observation (${result.success ? 'ok' : 'FAILED'}): ${truncate(result.observation, 500)}`);
     seenActions.set(signature, result.observation);
+    noProgressCount = 0; // an executed action is progress, even when it fails
 
     if (result.success && action.action === 'write_file') {
       hadSuccessfulWrite = true;
@@ -228,7 +277,7 @@ export async function runAgentLoop(
       content: buildObservationPrompt(
         goal,
         i,
-        config.maxIterations,
+        effectiveMaxIterations,
         `${result.observation}\n\nACTIONS COMPLETED SO FAR: ${recap}`
       )
     });
@@ -242,7 +291,7 @@ export async function runAgentLoop(
     }
     vscode.window.showInformationMessage('CodeLoop AI: Done. See "CodeLoop AI" output for the answer.');
   } else if (!token.isCancellationRequested) {
-    output.appendLine(`\nReached max iterations (${config.maxIterations}) without a final answer.`);
+    output.appendLine(`\nReached max iterations (${effectiveMaxIterations}) without a final answer.`);
     vscode.window.showWarningMessage('CodeLoop AI: Reached max iterations without finishing.');
   }
 
@@ -337,15 +386,16 @@ async function getAction(
   output: vscode.OutputChannel,
   memory: AgentMemory,
   goal: string,
-  iteration: number
+  iteration: number,
+  jsonRetries: number
 ): Promise<AgentAction | undefined> {
-  for (let attempt = 0; attempt <= JSON_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= jsonRetries; attempt++) {
     const raw = await client.chat(messages, { format: AGENT_ACTION_SCHEMA, temperature: 0.1 });
     const action = parseAction(raw);
     if (action) {
       return action;
     }
-    output.appendLine(`Invalid JSON from model (attempt ${attempt + 1}/${JSON_RETRIES + 1}). Retrying...`);
+    output.appendLine(`Invalid JSON from model (attempt ${attempt + 1}/${jsonRetries + 1}). Retrying...`);
     await memory.saveFailedAttempt(
       goal,
       `Iteration ${iteration}: invalid JSON from model (attempt ${attempt + 1}): ${raw.slice(0, 200)}`

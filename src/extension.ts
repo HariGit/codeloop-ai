@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { runAgentLoop } from './agent/agentLoop';
 import { scanSalesforceProject } from './agent/salesforceScanner';
-import { AgentConfig } from './types/agentTypes';
+import { AgentConfig, DEFAULT_LOOP_CONFIG, LoopConfig } from './types/agentTypes';
 
 let output: vscode.OutputChannel;
 
@@ -40,12 +40,29 @@ export function activate(context: vscode.ExtensionContext): void {
 
 function getConfig(): AgentConfig {
   const cfg = vscode.workspace.getConfiguration('codeloopAi');
+  // Backward compatibility: the legacy maxIterations setting seeds the
+  // loop default when codeloopAi.loop.defaultMaxIterations is not set.
+  const legacyMax = cfg.get<number>('maxIterations', DEFAULT_LOOP_CONFIG.defaultMaxIterations);
+  const absoluteMax = Math.max(1, cfg.get<number>('loop.absoluteMaxIterations', DEFAULT_LOOP_CONFIG.absoluteMaxIterations));
+  const loop: LoopConfig = {
+    defaultMaxIterations: Math.max(1, cfg.get<number>('loop.defaultMaxIterations', legacyMax)),
+    absoluteMaxIterations: absoluteMax,
+    jsonRetries: Math.max(0, cfg.get<number>('loop.jsonRetries', DEFAULT_LOOP_CONFIG.jsonRetries)),
+    answerValidationRetries: Math.max(0, cfg.get<number>('loop.answerValidationRetries', DEFAULT_LOOP_CONFIG.answerValidationRetries)),
+    noProgressLimit: Math.max(1, cfg.get<number>('loop.noProgressLimit', DEFAULT_LOOP_CONFIG.noProgressLimit)),
+    autoStopExplainAfterFiles: cfg.get<boolean>('loop.autoStopExplainAfterFiles', DEFAULT_LOOP_CONFIG.autoStopExplainAfterFiles),
+    modeMaxIterations: {
+      ...DEFAULT_LOOP_CONFIG.modeMaxIterations,
+      ...cfg.get<Record<string, number>>('loop.modeMaxIterations', {})
+    }
+  };
   return {
     provider: cfg.get<AgentConfig['provider']>('provider', 'ollama'),
     endpoint: cfg.get<string>('ollamaEndpoint', 'http://localhost:11434/api/chat'),
     model: cfg.get<string>('model', 'qwen3-coder:latest'),
     apiKey: cfg.get<string>('apiKey', '') || undefined,
-    maxIterations: Math.max(1, Math.min(cfg.get<number>('maxIterations', 8), 8))
+    maxIterations: Math.min(loop.defaultMaxIterations, absoluteMax),
+    loop
   };
 }
 
