@@ -179,8 +179,9 @@ export async function runAgentLoop(
     // THINK: get a JSON action from the model (structured output + retries).
     const action = await getAction(client, messages, output, memory, goal, i, loopCfg.jsonRetries);
     if (!action) {
-      await memory.saveFailedAttempt(goal, `Iteration ${i}: model kept returning invalid JSON. Aborted.`);
-      throw new Error('Model returned invalid JSON repeatedly. Try again or check the model.');
+      await memory.saveFailedAttempt(goal, `Iteration ${i}: model kept returning invalid JSON.`);
+      output.appendLine('Model kept returning invalid JSON — moving to wrap-up with the context gathered so far.');
+      break;
     }
 
     output.appendLine(`Thought: ${action.thought}`);
@@ -343,6 +344,37 @@ export async function runAgentLoop(
       }
     } catch (err) {
       output.appendLine(`Wrap-up call failed: ${(err as Error).message}`);
+    }
+
+    // Last resort: drop the JSON constraint entirely and take plain text.
+    if (!finalAnswer) {
+      output.appendLine('Structured wrap-up failed — requesting a plain-text answer...');
+      try {
+        const plain = await client.chat(
+          [
+            ...messages,
+            {
+              role: 'user',
+              content:
+                'Forget the JSON format. Write your complete final answer now as PLAIN TEXT, following the required answer sections, based only on what you observed above.'
+            }
+          ],
+          { temperature: 0.2 }
+        );
+        if (plain.trim()) {
+          const violations = validateFinalAnswer(plain, hadSuccessfulWrite, hadSuccessfulRun);
+          if (violations.length > 0) {
+            output.appendLine(`WARNING: answer contains unverified claims (${violations.join(', ')}). Verify manually.`);
+          }
+          finalAnswer = plain.trim();
+          finalEvidence = filterEvidence(
+            history.filter(h => h.success && h.action === 'read_file').map(h => h.detail.replace(/[()]/g, '').trim()),
+            history
+          );
+        }
+      } catch (err) {
+        output.appendLine(`Plain-text wrap-up also failed: ${(err as Error).message}`);
+      }
     }
   }
 

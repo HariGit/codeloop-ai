@@ -28,7 +28,12 @@ export class OllamaProvider implements ModelProvider {
           stream: false,
           // Ollama structured output: constrains the model to this JSON schema.
           ...(opts?.format ? { format: opts.format } : {}),
-          options: { temperature: opts?.temperature ?? 0.1 }
+          options: {
+            temperature: opts?.temperature ?? 0.1,
+            // Default context is tiny (often 4k); agent runs carry file contents,
+            // so a large window is essential for valid long responses.
+            num_ctx: this.config.numCtx ?? 32768
+          }
         })
       });
     } catch {

@@ -158,6 +158,8 @@ export interface AgentConfig {
   model: string;
   /** API key for cloud providers (unused by Ollama). */
   apiKey?: string;
+  /** Ollama context window (num_ctx); default 32768. */
+  numCtx?: number;
   /** Legacy default max iterations (kept for backward compatibility). */
   maxIterations: number;
   /** Loop behavior; DEFAULT_LOOP_CONFIG is used when absent. */

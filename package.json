@@ -80,6 +80,11 @@
           "default": "",
           "description": "Fallback API key if a provider-specific key is not set."
         },
+        "codeloopAi.ollamaNumCtx": {
+          "type": "number",
+          "default": 32768,
+          "description": "Ollama context window (num_ctx). Agent runs carry file contents \u2014 keep this large. Lower it if your machine runs out of memory."
+        },
         "codeloopAi.ollamaEndpoint": {
           "type": "string",
           "default": "http://localhost:11434/api/chat",
@@ -88,7 +93,7 @@
         "codeloopAi.model": {
           "type": "string",
           "default": "qwen3-coder:latest",
-          "description": "Ollama model name"
+          "description": "Model name: Ollama model (e.g. qwen3-coder:latest), API model id (e.g. claude-sonnet-4-5, gpt-4o), or model family for vscode-lm (e.g. gpt-4o)."
         },
         "codeloopAi.maxIterations": {
           "type": "number",

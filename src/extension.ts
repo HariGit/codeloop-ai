@@ -75,6 +75,7 @@ function getConfig(): AgentConfig {
     endpoint: cfg.get<string>('ollamaEndpoint', 'http://localhost:11434/api/chat'),
     model: cfg.get<string>('model', 'qwen3-coder:latest'),
     apiKey: cfg.get<string>('apiKey', '') || undefined,
+    numCtx: cfg.get<number>('ollamaNumCtx', 32768),
     maxIterations: Math.min(loop.defaultMaxIterations, absoluteMax),
     loop
   };
