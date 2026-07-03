@@ -110,8 +110,52 @@ function resolveSafe(workspaceRoot: string, relPath: string): string {
   return full;
 }
 
-/** read_file — allowed automatically. */
+// ---------------------------------------------------------------------------
+// read_file safety — sensitive files can never be read
+// ---------------------------------------------------------------------------
+
+/** Salesforce/code sources exempt from the credentials-keyword filename check
+ *  (e.g. AuthTokenService.cls must stay readable for reviews). */
+const SOURCE_EXT = /\.(cls|trigger|page|component)$/i;
+
+const PROTECTED_DIRS = ['.sf', '.sfdx', '.git', 'node_modules'];
+
+/** Check whether a path may be read. Blocked paths never expose contents. */
+export function isBlockedReadPath(relPath: string): { blocked: boolean; reason: string } {
+  const norm = relPath.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
+  const base = norm.split('/').pop() ?? '';
+
+  // .env and .env.* anywhere
+  if (base === '.env' || base.startsWith('.env.')) {
+    return { blocked: true, reason: 'environment file (.env)' };
+  }
+  // Key material anywhere
+  if (/\.(pem|key|p12|jks|pfx)$/.test(base)) {
+    return { blocked: true, reason: 'private key / certificate file' };
+  }
+  // Protected folders anywhere in the path
+  for (const dir of PROTECTED_DIRS) {
+    if (norm === dir || norm.startsWith(`${dir}/`) || norm.includes(`/${dir}/`)) {
+      return { blocked: true, reason: `protected folder (${dir})` };
+    }
+  }
+  // Credential-suggesting filenames (source code files exempt)
+  if (!SOURCE_EXT.test(base) && /(password|secret|token|credential)/.test(base)) {
+    return { blocked: true, reason: 'filename suggests credentials' };
+  }
+  return { blocked: false, reason: '' };
+}
+
+/** read_file — allowed automatically, except for sensitive paths. */
 export async function readFile(workspaceRoot: string, relPath: string): Promise<ActionResult> {
+  const check = isBlockedReadPath(relPath);
+  if (check.blocked) {
+    await logAction(workspaceRoot, 'read_file', relPath, 'BLOCKED', check.reason);
+    return {
+      success: false,
+      observation: `Read BLOCKED for "${relPath}" (${check.reason}). This file may contain secrets and can never be read by the agent. Do not try again.`
+    };
+  }
   try {
     const full = resolveSafe(workspaceRoot, relPath);
     const content = await fs.readFile(full, 'utf8');
