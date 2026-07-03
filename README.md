@@ -119,8 +119,8 @@ Every approve/reject/block decision is logged to `.agent-memory/action-history.m
 - **Goal anchoring + session recap** — every observation repeats the goal and lists the actions already completed.
 - **Duplicate guard** — repeated identical reads/searches replay the earlier result.
 - **No-progress stop** — consecutive blocked/duplicate iterations end the run early.
-- **Forced wrap-up** — if iterations run out, one extra call demands a final answer from gathered context; you never get nothing.
-- **Structured output** — Ollama's JSON-schema `format` constrains action responses.
+- **Forced wrap-up** — if iterations run out (or the model keeps producing invalid JSON), one extra call demands a final answer from gathered context; if structured output still fails, a plain-text fallback captures the answer. You never get nothing.
+- **Structured output** — Ollama's JSON-schema `format` constrains action responses, with a large context window (`codeloopAi.ollamaNumCtx`, default 32768) so long answers don't get truncated into invalid JSON.
 
 ## Apex LogLens (debug log analysis)
 
@@ -199,7 +199,7 @@ Note: the provider uses the Chat Completions API, so use chat models (`gpt-4o`, 
 
 ### Connecting to Copilot (VS Code LM)
 
-No API key needed — set `"codeloopAi.provider": "vscode-lm"` and `"codeloopAi.model"` to a model family (e.g. `gpt-4o`). Requires VS Code 1.90+ with GitHub Copilot installed and signed in.
+No API key needed — set `"codeloopAi.provider": "vscode-lm"` and `"codeloopAi.model"` to a model family in lowercase-hyphen form (e.g. `gpt-4o`, `gpt-5-mini`, `claude-sonnet-4-5` — whatever your Copilot plan offers). Requires VS Code 1.90+ with GitHub Copilot installed and signed in; the first call shows a one-time consent prompt. If the family name doesn't match, CodeLoop falls back to Copilot's first available model instead of failing.
 
 ## Settings
 
@@ -208,6 +208,7 @@ No API key needed — set `"codeloopAi.provider": "vscode-lm"` and `"codeloopAi.
 | `codeloopAi.provider` | `ollama` |
 | `codeloopAi.model` | `qwen3-coder:latest` |
 | `codeloopAi.ollamaEndpoint` | `http://localhost:11434/api/chat` |
+| `codeloopAi.ollamaNumCtx` | `32768` (Ollama context window; lower it if RAM-constrained) |
 | `codeloopAi.anthropicApiKey` / `openAiApiKey` / `apiKey` | (empty) |
 | `codeloopAi.loop.defaultMaxIterations` | `8` |
 | `codeloopAi.loop.absoluteMaxIterations` | `20` (hard ceiling) |
@@ -232,6 +233,7 @@ No API key needed — set `"codeloopAi.provider": "vscode-lm"` and `"codeloopAi.
 - **Breakpoints**: open this repo, F5 launches an Extension Development Host with the debugger attached to the TypeScript sources.
 - **`npm test`**: 23 fast unit tests for detector/validation/parsing/risk/redaction logic.
 - **Isolate Ollama**: `curl http://localhost:11434/api/chat -d '{"model":"qwen3-coder:latest","messages":[{"role":"user","content":"hi"}],"stream":false}'`.
+- **Repeated "Invalid JSON from model"** on Ollama usually means context truncation — keep `codeloopAi.ollamaNumCtx` large (the run still recovers via the plain-text wrap-up, but the answer quality is better without truncation).
 
 ## Testing
 
