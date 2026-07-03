@@ -35,6 +35,10 @@
         "title": "CodeLoop AI: Analyze Flow Migration"
       },
       {
+        "command": "codeloop-ai.analyzeDebugLog",
+        "title": "CodeLoop AI: Analyze Apex Debug Log"
+      },
+      {
         "command": "codeloop-ai.deploymentReview",
         "title": "CodeLoop AI: Deployment Review"
       },
@@ -129,7 +133,8 @@
             "LWC_WORK": 8,
             "INTEGRATION_API": 8,
             "DEPLOYMENT_REVIEW": 6,
-            "GENERAL_SALESFORCE": 6
+            "GENERAL_SALESFORCE": 6,
+            "DEBUG_LOG_ANALYSIS": 6
           },
           "description": "Per-task-mode iteration limits (capped by absoluteMaxIterations)."
         }

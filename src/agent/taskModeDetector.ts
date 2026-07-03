@@ -15,6 +15,7 @@ export type SalesforceTaskMode =
   | 'LWC_WORK'
   | 'INTEGRATION_API'
   | 'DEPLOYMENT_REVIEW'
+  | 'DEBUG_LOG_ANALYSIS'
   | 'GENERAL_SALESFORCE';
 
 export interface TaskModeResult {
@@ -77,6 +78,12 @@ const MODE_MAP: Record<SalesforceTaskMode, Omit<TaskModeResult, 'mode'>> = {
     skillNames: ['salesforce-security'],
     allowedActions: [...READ_ONLY]
   },
+  DEBUG_LOG_ANALYSIS: {
+    agentName: 'apex-developer',
+    promptName: '',
+    skillNames: ['apex-trigger-framework'],
+    allowedActions: ['search_code', 'read_file', 'analyze_debug_log', 'final_answer']
+  },
   GENERAL_SALESFORCE: {
     agentName: 'salesforce-architect',
     promptName: '',
@@ -91,11 +98,14 @@ const RESTRICTED_MODES: SalesforceTaskMode[] = [
   'REVIEW_APEX',
   'FLOW_MIGRATION',
   'DEPLOYMENT_REVIEW',
+  'DEBUG_LOG_ANALYSIS',
   'GENERAL_SALESFORCE'
 ];
 
 /** Keyword rules, checked in order — first match wins. */
 const MODE_RULES: Array<{ mode: SalesforceTaskMode; pattern: RegExp }> = [
+  // Debug logs first — "analyze debug log" must not be swallowed by other verbs.
+  { mode: 'DEBUG_LOG_ANALYSIS', pattern: /\b(debug|apex)\s+logs?\b|\blog\s+analysis\b|\bloglens\b|\banalyz\w*\b[^.]*\blogs?\b|\blogs?\b[^.]*\b(exception|governor|root\s+cause)\b/i },
   // Specific intents first, so "migrate flow" is not swallowed by "modify".
   { mode: 'FLOW_MIGRATION', pattern: /\bflow\s+to\s+apex\b|\bmigrate\b[^.]*\bflow\b|\bconvert\b[^.]*\bflow\b|\bflow\s+(migration|analysis)\b|\banalyz(e|es|ing)\b[^.]*\bflow\b|\bflow\b[^.]*\b(move|migrate)\b[^.]*\bapex\b/i },
   { mode: 'CREATE_TEST', pattern: /\btest\s+class(es)?\b|\b(test\s+)?coverage\b|\bunit\s+tests?\b|\b(create|write|add|generate|build)\b[^.]*\btests?\b/i },

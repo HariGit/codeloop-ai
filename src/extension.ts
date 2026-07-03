@@ -26,6 +26,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('codeloop-ai.analyzeFlowMigration', () =>
       startStructured('Flow API name', 'e.g. Account_After_Save', name => `Analyze Flow ${name} and guide whether it should move to Apex.`)
     ),
+    vscode.commands.registerCommand('codeloop-ai.analyzeDebugLog', () =>
+      startStructured(
+        'Debug log file path (relative to the workspace)',
+        'e.g. logs/07L5g00000AbCdE.log',
+        logPath => `Analyze Apex debug log ${logPath} and identify the root cause.`
+      )
+    ),
     vscode.commands.registerCommand('codeloop-ai.deploymentReview', () =>
       startStructured(
         'Metadata or release notes',

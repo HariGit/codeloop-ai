@@ -5,6 +5,7 @@ import { AgentMemory, MEMORY_FILES } from './memory';
 import { ToolRegistry } from '../tools/ToolRegistry';
 import { NativeToolProvider } from '../tools/NativeToolProvider';
 import { McpToolProvider } from '../tools/McpToolProvider';
+import { LogLensToolProvider } from '../tools/LogLensToolProvider';
 import { ToolCall } from '../tools/ToolProvider';
 import { detectSalesforceTaskMode, TaskModeResult } from './taskModeDetector';
 import { loadAllSalesforceContext } from './instructionLoader';
@@ -26,15 +27,21 @@ import {
   AGENT_ACTION_SCHEMA,
   LoopConfig,
   DEFAULT_LOOP_CONFIG,
-  WRITE_ACTIONS
+  WRITE_ACTIONS,
+  LOG_ACTIONS
 } from '../types/agentTypes';
 
-/** Expand a mode allowlist: write_file grants all editing tools. */
+/** Expand a mode allowlist: write_file grants all editing tools;
+ *  analyze_debug_log grants all LogLens tools. */
 export function expandAllowedActions(allowed: string[]): string[] {
-  if (!allowed.includes('write_file')) {
-    return allowed;
+  let result = allowed;
+  if (allowed.includes('write_file')) {
+    result = [...new Set([...result, ...WRITE_ACTIONS])];
   }
-  return [...new Set([...allowed, ...WRITE_ACTIONS])];
+  if (allowed.includes('analyze_debug_log')) {
+    result = [...new Set([...result, ...LOG_ACTIONS])];
+  }
+  return result;
 }
 
 /** In EXPLAIN_APEX, stop gathering after this many files (when auto-stop is on). */
@@ -84,6 +91,7 @@ export async function runAgentLoop(
   // Tool registry: native tools now; MCP tools plug in here later.
   const registry = new ToolRegistry();
   registry.registerProvider(new NativeToolProvider(workspaceRoot));
+  registry.registerProvider(new LogLensToolProvider(workspaceRoot));
   registry.registerProvider(new McpToolProvider());
 
   progress.report({ message: `Checking model provider (${client.name})...` });
@@ -481,6 +489,11 @@ export function parseAction(raw: string): AgentAction | undefined {
     'replace_range',
     'apply_patch',
     'run_command',
+    'analyze_debug_log',
+    'analyze_latest_apex_logs',
+    'explain_log_flow',
+    'find_log_exception',
+    'find_governor_risk',
     'final_answer'
   ];
   if (!a.action || !validActions.includes(a.action)) {
@@ -518,6 +531,7 @@ export function parseAction(raw: string): AgentAction | undefined {
   if (a.action === 'replace_range' && (!path || content === undefined || startLine === undefined || endLine === undefined)) return undefined;
   if (a.action === 'apply_patch' && (!path || !patch)) return undefined;
   if (a.action === 'run_command' && !command) return undefined;
+  if (['analyze_debug_log', 'explain_log_flow', 'find_log_exception', 'find_governor_risk'].includes(a.action) && !path) return undefined;
 
   return {
     thought: typeof a.thought === 'string' ? a.thought : '(no thought provided)',

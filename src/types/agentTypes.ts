@@ -11,6 +11,11 @@ export type AgentActionType =
   | 'replace_range'
   | 'apply_patch'
   | 'run_command'
+  | 'analyze_debug_log'
+  | 'analyze_latest_apex_logs'
+  | 'explain_log_flow'
+  | 'find_log_exception'
+  | 'find_governor_risk'
   | 'final_answer';
 
 /** Actions that modify files; allowed wherever write_file is allowed. */
@@ -20,6 +25,15 @@ export const WRITE_ACTIONS: AgentActionType[] = [
   'replace_file',
   'replace_range',
   'apply_patch'
+];
+
+/** LogLens tools; allowed wherever analyze_debug_log is allowed. */
+export const LOG_ACTIONS: AgentActionType[] = [
+  'analyze_debug_log',
+  'analyze_latest_apex_logs',
+  'explain_log_flow',
+  'find_log_exception',
+  'find_governor_risk'
 ];
 
 /** Detected task mode; controls which actions are allowed. */
@@ -131,6 +145,7 @@ export const DEFAULT_LOOP_CONFIG: LoopConfig = {
     LWC_WORK: 8,
     INTEGRATION_API: 8,
     DEPLOYMENT_REVIEW: 6,
+    DEBUG_LOG_ANALYSIS: 6,
     GENERAL_SALESFORCE: 6
   }
 };
@@ -164,6 +179,11 @@ export const AGENT_ACTION_SCHEMA = {
         'replace_range',
         'apply_patch',
         'run_command',
+        'analyze_debug_log',
+        'analyze_latest_apex_logs',
+        'explain_log_flow',
+        'find_log_exception',
+        'find_governor_risk',
         'final_answer'
       ]
     },

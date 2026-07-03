@@ -56,11 +56,25 @@ export const deploymentReviewTemplate = `FINAL ANSWER FORMAT — structure your 
 - Post-Deployment Steps: verification and manual steps after
 - Risks: what could break, rollback approach`;
 
+export const debugLogTemplate = `FINAL ANSWER FORMAT — structure your final_answer with exactly these sections:
+- Entry Point: what started the transaction (trigger, page, batch, REST)
+- Execution Flow: what happened, step by step, in plain language
+- Method Call Sequence: the significant method chain from the call tree
+- SOQL Queries: what was queried and anything notable (counts, repeats)
+- DML Operations: what was written and anything notable
+- Exceptions: every exception/fatal error with its location
+- Governor Limit Risks: limits near thresholds and loop patterns detected
+- Root Cause: the single most likely cause of the problem
+- Recommended Fix: concrete code-level fix, referencing classes read
+- Evidence Files: the log file analyzed and any classes read`;
+
 /** Template for a task mode; '' when the mode has no fixed format. */
 export function getResponseTemplate(mode: string): string {
   switch (mode) {
     case 'EXPLAIN_APEX':
       return explainApexTemplate;
+    case 'DEBUG_LOG_ANALYSIS':
+      return debugLogTemplate;
     case 'FLOW_MIGRATION':
       return flowMigrationTemplate;
     case 'CREATE_TEST':
