@@ -10,6 +10,29 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand('codeloop-ai.startAgent', () => startAgent()),
+    vscode.commands.registerCommand('codeloop-ai.explainApexClass', () =>
+      startStructured('Apex class name', 'e.g. AccountService', name => `Explain Apex class ${name} functionality.`)
+    ),
+    vscode.commands.registerCommand('codeloop-ai.reviewApexClass', () =>
+      startStructured(
+        'Apex class name',
+        'e.g. AccountService',
+        name => `Review Apex class ${name} for Salesforce best practices, bulkification, SOQL/DML risks, security, and improvements.`
+      )
+    ),
+    vscode.commands.registerCommand('codeloop-ai.createApexTest', () =>
+      startStructured('Apex class name', 'e.g. AccountService', name => `Create Apex test class for ${name}.`)
+    ),
+    vscode.commands.registerCommand('codeloop-ai.analyzeFlowMigration', () =>
+      startStructured('Flow API name', 'e.g. Account_After_Save', name => `Analyze Flow ${name} and guide whether it should move to Apex.`)
+    ),
+    vscode.commands.registerCommand('codeloop-ai.deploymentReview', () =>
+      startStructured(
+        'Metadata or release notes',
+        'e.g. AccountService, AccountTrigger, Sales permission set',
+        input => `Perform Salesforce deployment review for ${input}.`
+      )
+    ),
     vscode.commands.registerCommand('codeloop-ai.scanSalesforceProject', () => scanProject()),
     output
   );
@@ -33,12 +56,8 @@ function getWorkspaceRoot(): string | undefined {
   return folder.uri.fsPath;
 }
 
+/** Free-form goal (CodeLoop AI: Start Agent). */
 async function startAgent(): Promise<void> {
-  const root = getWorkspaceRoot();
-  if (!root) {
-    return;
-  }
-
   const goal = await vscode.window.showInputBox({
     title: 'CodeLoop AI',
     prompt: 'What is your coding goal?',
@@ -48,17 +67,44 @@ async function startAgent(): Promise<void> {
   if (!goal || !goal.trim()) {
     return;
   }
+  await runGoal(goal.trim());
+}
+
+/** Salesforce commands: ask one input, build a structured goal, run the same loop. */
+async function startStructured(
+  promptLabel: string,
+  placeHolder: string,
+  buildGoal: (input: string) => string
+): Promise<void> {
+  const input = await vscode.window.showInputBox({
+    title: 'CodeLoop AI',
+    prompt: promptLabel,
+    placeHolder,
+    ignoreFocusOut: true
+  });
+  if (!input || !input.trim()) {
+    return;
+  }
+  await runGoal(buildGoal(input.trim()));
+}
+
+/** Shared runner: every command funnels into the same agent loop. */
+async function runGoal(goal: string): Promise<void> {
+  const root = getWorkspaceRoot();
+  if (!root) {
+    return;
+  }
 
   output.show(true);
   output.appendLine(`\n${'='.repeat(60)}`);
-  output.appendLine(`Goal: ${goal.trim()}`);
+  output.appendLine(`Goal: ${goal}`);
   output.appendLine('='.repeat(60));
 
   try {
     await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'CodeLoop AI', cancellable: true },
       async (progress, token) => {
-        await runAgentLoop(goal.trim(), root, getConfig(), output, progress, token);
+        await runAgentLoop(goal, root, getConfig(), output, progress, token);
       }
     );
   } catch (err) {

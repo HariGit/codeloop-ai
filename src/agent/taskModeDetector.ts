@@ -97,7 +97,7 @@ const RESTRICTED_MODES: SalesforceTaskMode[] = [
 /** Keyword rules, checked in order — first match wins. */
 const MODE_RULES: Array<{ mode: SalesforceTaskMode; pattern: RegExp }> = [
   // Specific intents first, so "migrate flow" is not swallowed by "modify".
-  { mode: 'FLOW_MIGRATION', pattern: /\bflow\s+to\s+apex\b|\bmigrate\b[^.]*\bflow\b|\bconvert\b[^.]*\bflow\b|\bflow\s+(migration|analysis)\b/i },
+  { mode: 'FLOW_MIGRATION', pattern: /\bflow\s+to\s+apex\b|\bmigrate\b[^.]*\bflow\b|\bconvert\b[^.]*\bflow\b|\bflow\s+(migration|analysis)\b|\banalyz(e|es|ing)\b[^.]*\bflow\b|\bflow\b[^.]*\b(move|migrate)\b[^.]*\bapex\b/i },
   { mode: 'CREATE_TEST', pattern: /\btest\s+class(es)?\b|\b(test\s+)?coverage\b|\bunit\s+tests?\b|\b(create|write|add|generate|build)\b[^.]*\btests?\b/i },
   { mode: 'DEPLOYMENT_REVIEW', pattern: /\bdeploy(ment|ing)?\b|\bpackage\.xml\b|\brelease\b|\bvalidat(e|ion)\b[^.]*\b(org|deployment|sandbox|production)\b/i },
   // Explain/review before LWC/integration so "explain this lwc" stays read-only.

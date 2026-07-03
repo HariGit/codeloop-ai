@@ -19,6 +19,26 @@
         "title": "CodeLoop AI: Start Agent"
       },
       {
+        "command": "codeloop-ai.explainApexClass",
+        "title": "CodeLoop AI: Explain Apex Class"
+      },
+      {
+        "command": "codeloop-ai.reviewApexClass",
+        "title": "CodeLoop AI: Review Apex Class"
+      },
+      {
+        "command": "codeloop-ai.createApexTest",
+        "title": "CodeLoop AI: Create Apex Test Class"
+      },
+      {
+        "command": "codeloop-ai.analyzeFlowMigration",
+        "title": "CodeLoop AI: Analyze Flow Migration"
+      },
+      {
+        "command": "codeloop-ai.deploymentReview",
+        "title": "CodeLoop AI: Deployment Review"
+      },
+      {
         "command": "codeloop-ai.scanSalesforceProject",
         "title": "CodeLoop AI: Scan Salesforce Project"
       }
