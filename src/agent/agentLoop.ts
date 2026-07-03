@@ -81,18 +81,21 @@ export async function runAgentLoop(
       : 'No .codeloop instruction files found — using base prompt only.'
   );
 
-  // Memory-informed planning: read rules/summary/patterns before the first step.
-  const [rules, summary, patterns] = await Promise.all([
+  // Memory-informed planning: rules, summary, patterns, and past Salesforce
+  // decisions are all read before the first step.
+  const [rules, summary, patterns, decisions] = await Promise.all([
     memory.read(MEMORY_FILES.projectRules),
     memory.read(MEMORY_FILES.projectSummary),
-    memory.read(MEMORY_FILES.learnedPatterns)
+    memory.read(MEMORY_FILES.learnedPatterns),
+    memory.read(MEMORY_FILES.salesforceDecisions)
   ]);
 
   // 3. System prompt = base rules + loaded Salesforce context.
   const modeSection = buildModeSection(modeResult.mode, modeResult.allowedActions);
   const messages: ChatMessage[] = [
     { role: 'system', content: buildSystemPrompt(sfContext.combined) },
-    { role: 'user', content: buildInitialPrompt(goal, modeSection, rules, summary, patterns) }
+    // Recent decisions only (tail) to keep the prompt concise.
+    { role: 'user', content: buildInitialPrompt(goal, modeSection, rules, summary, patterns, decisions.slice(-2000)) }
   ];
 
   const history: IterationRecord[] = [];
@@ -113,7 +116,7 @@ export async function runAgentLoop(
     output.appendLine(`\n--- Iteration ${i}/${config.maxIterations} ---`);
 
     // THINK: get a JSON action from the model (structured output + retries).
-    const action = await getAction(client, messages, output);
+    const action = await getAction(client, messages, output, memory, goal, i);
     if (!action) {
       await memory.saveFailedAttempt(goal, `Iteration ${i}: model kept returning invalid JSON. Aborted.`);
       throw new Error('Model returned invalid JSON repeatedly. Try again or check the model.');
@@ -151,6 +154,7 @@ export async function runAgentLoop(
     if (!modeResult.allowedActions.includes(action.action)) {
       const observation = `Action "${action.action}" was BLOCKED due to task mode ${modeResult.mode}. Allowed actions: ${modeResult.allowedActions.join(', ')}. Choose a valid action and stay on the original goal.`;
       output.appendLine(`Blocked: ${action.action} (mode ${modeResult.mode})`);
+      await memory.saveFailedAttempt(goal, `Iteration ${i}: action "${action.action}" blocked in ${modeResult.mode} mode.`);
       messages.push({ role: 'user', content: buildObservationPrompt(goal, i, config.maxIterations, observation) });
       continue;
     }
@@ -210,9 +214,19 @@ export async function runAgentLoop(
     vscode.window.showWarningMessage('CodeLoop AI: Reached max iterations without finishing.');
   }
 
-  // Session reflection → .agent-memory/reflections.md (and patterns if any).
+  // Structured reflection → reflections.md; decisions → salesforce-decisions.md.
+  progress.report({ message: 'Saving reflection...' });
+  const filesRead = history
+    .filter(h => h.success && h.action === 'read_file')
+    .map(h => h.detail.replace(/[()]/g, '').trim());
+  const actionsTaken = history.map(h => `${h.action}${h.detail} [${h.success ? 'ok' : 'fail'}]`);
+  const finalResult = finalAnswer ?? (token.isCancellationRequested ? 'Cancelled by user.' : 'No final answer (max iterations reached).');
+
+  // Ask the model for the three labeled reflection lines; degrade gracefully.
+  let whatWorked = '(not captured)';
+  let whatFailed = '(not captured)';
+  let reusableLearning = '';
   try {
-    progress.report({ message: 'Saving reflection...' });
     const historyText = history.length
       ? history.map(h => `${h.iteration}. [${h.success ? 'ok' : 'fail'}] ${h.action}${h.detail} → ${h.observation}`).join('\n')
       : '(no actions executed)';
@@ -226,17 +240,51 @@ export async function runAgentLoop(
       ],
       { temperature: 0.3 }
     );
-    await memory.saveReflection(goal, reflection);
-    output.appendLine('\nReflection saved to .agent-memory/reflections.md');
-
-    // Heuristic: reflections often contain a reusable lesson — store it as a pattern too.
-    const lesson = reflection.split('\n').filter(l => l.trim()).pop();
-    if (lesson && history.some(h => h.success)) {
-      await memory.saveLearnedPattern(lesson.trim());
-    }
+    whatWorked = extractLabeled(reflection, 'What worked') ?? whatWorked;
+    whatFailed = extractLabeled(reflection, 'What failed') ?? whatFailed;
+    reusableLearning = extractLabeled(reflection, 'Reusable learning') ?? '';
   } catch {
-    output.appendLine('Could not generate a reflection (Ollama call failed). Continuing.');
+    output.appendLine('Could not generate a reflection (Ollama call failed). Saving facts only.');
   }
+
+  await memory.saveStructuredReflection({
+    goal,
+    mode: modeResult.mode,
+    filesRead,
+    actionsTaken,
+    finalResult,
+    whatWorked,
+    whatFailed,
+    reusableLearning: reusableLearning || '(none)'
+  });
+  output.appendLine('\nReflection saved to .agent-memory/reflections.md');
+
+  if (reusableLearning && history.some(h => h.success)) {
+    await memory.saveLearnedPattern(reusableLearning);
+  }
+
+  // Salesforce architecture decisions get their own memory file.
+  if (finalAnswer && isArchitectureDecision(modeResult.mode, finalAnswer)) {
+    await memory.saveSalesforceDecision(goal, modeResult.mode, finalAnswer);
+    output.appendLine('Decision saved to .agent-memory/salesforce-decisions.md');
+  }
+}
+
+/** Modes/answers that represent Salesforce architecture decisions. */
+const ARCHITECTURE_MODES = ['FLOW_MIGRATION', 'DEPLOYMENT_REVIEW', 'INTEGRATION_API'];
+
+export function isArchitectureDecision(mode: string, answer: string): boolean {
+  if (ARCHITECTURE_MODES.includes(mode)) {
+    return true;
+  }
+  return /\b(architecture|trigger framework|selector layer|service layer|domain layer|recommended apex design|migrate to apex|dto)\b/i.test(answer);
+}
+
+/** Pull "Label: text" out of the model's reflection; undefined when absent. */
+export function extractLabeled(text: string, label: string): string | undefined {
+  const match = text.match(new RegExp(`${label}\\s*:\\s*(.+)`, 'i'));
+  const value = match?.[1]?.trim();
+  return value && value.length > 0 ? value : undefined;
 }
 
 /** Keep only evidence entries matching files the agent actually read or searched. */
@@ -254,7 +302,10 @@ function filterEvidence(evidence: string[] | undefined, history: IterationRecord
 async function getAction(
   client: OllamaClient,
   messages: ChatMessage[],
-  output: vscode.OutputChannel
+  output: vscode.OutputChannel,
+  memory: AgentMemory,
+  goal: string,
+  iteration: number
 ): Promise<AgentAction | undefined> {
   for (let attempt = 0; attempt <= JSON_RETRIES; attempt++) {
     const raw = await client.chat(messages, { format: AGENT_ACTION_SCHEMA, temperature: 0.1 });
@@ -263,6 +314,10 @@ async function getAction(
       return action;
     }
     output.appendLine(`Invalid JSON from model (attempt ${attempt + 1}/${JSON_RETRIES + 1}). Retrying...`);
+    await memory.saveFailedAttempt(
+      goal,
+      `Iteration ${iteration}: invalid JSON from model (attempt ${attempt + 1}): ${raw.slice(0, 200)}`
+    );
     messages.push({ role: 'assistant', content: raw });
     messages.push({ role: 'user', content: INVALID_JSON_PROMPT });
   }

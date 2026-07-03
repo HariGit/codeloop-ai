@@ -80,7 +80,8 @@ export function buildInitialPrompt(
   modeSection: string,
   projectRules: string,
   projectSummary: string,
-  learnedPatterns: string
+  learnedPatterns: string,
+  salesforceDecisions = ''
 ): string {
   const sections = [`GOAL:\n${goal}`, modeSection];
   if (projectRules.trim()) {
@@ -91,6 +92,9 @@ export function buildInitialPrompt(
   }
   if (learnedPatterns.trim()) {
     sections.push(`LEARNED PATTERNS (from .agent-memory/learned-patterns.md):\n${learnedPatterns.trim()}`);
+  }
+  if (salesforceDecisions.trim()) {
+    sections.push(`PAST SALESFORCE DECISIONS (from .agent-memory/salesforce-decisions.md) — stay consistent with these:\n${salesforceDecisions.trim()}`);
   }
   sections.push('Respond with your first action as JSON.');
   return sections.join('\n\n');
@@ -113,9 +117,9 @@ No files were created or modified, and no commands were run, unless a successful
 Respond again with a final_answer JSON that describes ONLY what you actually observed in the files you read. Do not claim any file creation, modification, test execution, or deployment.`;
 }
 
-/** Ask the model for a one-paragraph reflection after the loop ends. */
+/** Ask the model for a labeled reflection after the loop ends. */
 export function buildReflectionPrompt(goal: string, historySummary: string): string {
-  return `The agent session has ended.\n\nGOAL: ${goal}\n\nHISTORY:\n${historySummary}\n\nWrite a short reflection (3-5 sentences, plain text, no JSON): what worked, what failed, and one reusable lesson for this project.`;
+  return `The agent session has ended.\n\nGOAL: ${goal}\n\nHISTORY:\n${historySummary}\n\nWrite a short reflection as plain text (no JSON) using EXACTLY these three lines:\nWhat worked: <one sentence>\nWhat failed: <one sentence, or "nothing">\nReusable learning: <one sentence lesson for this project>`;
 }
 
 /** Nudge the model when it returns invalid JSON. */
