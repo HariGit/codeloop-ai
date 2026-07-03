@@ -1,0 +1,57 @@
+{
+  "name": "codeloop-ai",
+  "displayName": "CodeLoop AI",
+  "description": "Local recursive coding agent for VS Code powered by Ollama (qwen3-coder)",
+  "version": "0.1.0",
+  "publisher": "vasu",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeloop-ai.startAgent",
+        "title": "CodeLoop AI: Start Agent"
+      },
+      {
+        "command": "codeloop-ai.scanSalesforceProject",
+        "title": "CodeLoop AI: Scan Salesforce Project"
+      }
+    ],
+    "configuration": {
+      "title": "CodeLoop AI",
+      "properties": {
+        "codeloopAi.ollamaEndpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/chat",
+          "description": "Ollama chat API endpoint"
+        },
+        "codeloopAi.model": {
+          "type": "string",
+          "default": "qwen3-coder:latest",
+          "description": "Ollama model name"
+        },
+        "codeloopAi.maxIterations": {
+          "type": "number",
+          "default": 8,
+          "description": "Maximum agent loop iterations"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
