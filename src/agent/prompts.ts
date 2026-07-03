@@ -116,7 +116,11 @@ export function buildObservationPrompt(
   maxIterations: number,
   observation: string
 ): string {
-  return `OBSERVATION (iteration ${iteration}/${maxIterations}):\n${observation}\n\nREMEMBER THE GOAL: ${goal}\nStay on this goal — do not expand it. Reflect on the observation, improve your plan if needed, and respond with your next action as JSON. If the goal is complete, use final_answer.`;
+  const lastWarning =
+    iteration + 1 >= maxIterations
+      ? '\n\nWARNING: The next action is your LAST iteration. Respond with final_answer and your complete answer now — do not read or search anything else.'
+      : '';
+  return `OBSERVATION (iteration ${iteration}/${maxIterations}):\n${observation}\n\nREMEMBER THE GOAL: ${goal}\nStay on this goal — do not expand it. Reflect on the observation, improve your plan if needed, and respond with your next action as JSON. If the goal is complete, use final_answer.${lastWarning}`;
 }
 
 /** Sent when the final answer claims work that never happened. */

@@ -293,6 +293,34 @@ export async function runAgentLoop(
     });
   }
 
+  // FORCED WRAP-UP: iterations exhausted without a final answer — demand one
+  // from the context already gathered so the user never gets nothing.
+  if (!finalAnswer && !token.isCancellationRequested) {
+    output.appendLine('\nIterations exhausted — requesting a final answer from gathered context...');
+    progress.report({ message: 'Getting final answer...' });
+    messages.push({
+      role: 'user',
+      content:
+        'All iterations are used. You MUST respond now with a final_answer JSON whose "answer" contains your complete answer based ONLY on what you observed above. Do not request any other action. Do not claim any file creation, modification, test execution, or deployment.'
+    });
+    try {
+      const wrapUp = await getAction(client, messages, output, memory, goal, effectiveMaxIterations + 1, loopCfg.jsonRetries);
+      if (wrapUp && wrapUp.action === 'final_answer' && (wrapUp.answer ?? '').trim()) {
+        const answer = (wrapUp.answer ?? '').trim();
+        const violations = validateFinalAnswer(answer, hadSuccessfulWrite, hadSuccessfulRun);
+        if (violations.length > 0) {
+          output.appendLine(`WARNING: wrap-up answer contains unverified claims (${violations.join(', ')}). Verify manually.`);
+        }
+        finalAnswer = answer;
+        finalEvidence = filterEvidence(wrapUp.evidence, history);
+      } else if (wrapUp) {
+        output.appendLine(`Wrap-up failed: model requested "${wrapUp.action}" instead of final_answer.`);
+      }
+    } catch (err) {
+      output.appendLine(`Wrap-up call failed: ${(err as Error).message}`);
+    }
+  }
+
   // Wrap up.
   if (finalAnswer) {
     output.appendLine(`\n=== FINAL ANSWER ===\n${finalAnswer}`);
