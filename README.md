@@ -167,6 +167,23 @@ Ollama (local) is the default. Switch with `codeloopAi.provider`:
 
 All providers normalize responses to the same format, so the agent loop, safety guards, and memory behave identically regardless of backend. If a provider is not configured, the agent stops with a clear message telling you which setting to fix.
 
+### Connecting to Claude (Anthropic)
+
+1. Create an API key at [console.anthropic.com](https://console.anthropic.com) (API Keys → Create Key; billing required — pay-per-use, separate from a Claude.ai subscription).
+2. In VS Code settings (`Ctrl+,` → search "codeloop") or settings.json:
+
+```json
+"codeloopAi.provider": "anthropic",
+"codeloopAi.anthropicApiKey": "sk-ant-your-key-here",
+"codeloopAi.model": "claude-sonnet-4-5"
+```
+
+3. Run any CodeLoop command — everything works the same, only the model changes. A wrong key shows "Anthropic API key rejected (401)"; a missing key names the exact setting to fix.
+
+Trade-offs: Claude follows the JSON action format and section templates far better than small local models (fewer retries, better answers), but your code leaves the machine and each run costs tokens. Switch back anytime with `"codeloopAi.provider": "ollama"`. Treat the API key like a password — it lives in your user settings; never commit it.
+
+OpenAI works the same way with `codeloopAi.openAiApiKey` and e.g. `"codeloopAi.model": "gpt-4o"`; the VS Code LM provider needs no key, just VS Code 1.90+ with Copilot signed in.
+
 ## Settings
 
 | Setting | Default |
