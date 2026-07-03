@@ -34,6 +34,17 @@ vsce package
 code --install-extension codeloop-ai-0.1.0.vsix
 ```
 
+## Packaging
+
+To build a clean VSIX:
+
+```bash
+npm run compile
+vsce package
+```
+
+`.vscodeignore` keeps the package lean: sources (`src/`), source maps, `node_modules`, tests, and local memory (`.agent-memory/`) are excluded. The compiled `out/`, `package.json`, `README.md`, and the `.codeloop/` instruction templates are included. Run `npm test` before packaging.
+
 ## Commands
 
 | Command | Input | What it does |

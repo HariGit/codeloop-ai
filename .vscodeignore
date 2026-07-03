@@ -1,0 +1,13 @@
+.git/**
+.gitignore
+node_modules/**
+src/**
+**/*.map
+.vscode/**
+.agent-memory/**
+coverage/**
+test/**
+out/test/**
+*.zip
+*.vsix
+tsconfig.json
