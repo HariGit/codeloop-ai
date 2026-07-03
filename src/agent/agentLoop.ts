@@ -25,8 +25,17 @@ import {
   IterationRecord,
   AGENT_ACTION_SCHEMA,
   LoopConfig,
-  DEFAULT_LOOP_CONFIG
+  DEFAULT_LOOP_CONFIG,
+  WRITE_ACTIONS
 } from '../types/agentTypes';
+
+/** Expand a mode allowlist: write_file grants all editing tools. */
+export function expandAllowedActions(allowed: string[]): string[] {
+  if (!allowed.includes('write_file')) {
+    return allowed;
+  }
+  return [...new Set([...allowed, ...WRITE_ACTIONS])];
+}
 
 /** In EXPLAIN_APEX, stop gathering after this many files (when auto-stop is on). */
 const EXPLAIN_FILE_LIMIT = 3;
@@ -88,6 +97,7 @@ export async function runAgentLoop(
     defaultMaxIterations: config.maxIterations || DEFAULT_LOOP_CONFIG.defaultMaxIterations
   };
   const effectiveMaxIterations = resolveMaxIterations(loopCfg, modeResult.mode);
+  const allowedActions = expandAllowedActions(modeResult.allowedActions);
   output.appendLine(`Task mode: ${modeResult.mode}`);
   output.appendLine(`  max iterations: ${effectiveMaxIterations} (mode limit, absolute cap ${loopCfg.absoluteMaxIterations})`);
   output.appendLine(`  agent: ${modeResult.agentName || '(none)'} | prompt: ${modeResult.promptName || '(none)'} | skills: ${modeResult.skillNames.join(', ') || '(none)'}`);
@@ -189,8 +199,8 @@ export async function runAgentLoop(
     }
 
     // 4. MODE GUARD: block actions outside the mode's allowlist.
-    if (!modeResult.allowedActions.includes(action.action)) {
-      const observation = `Action "${action.action}" was BLOCKED due to task mode ${modeResult.mode}. Allowed actions: ${modeResult.allowedActions.join(', ')}. Choose a valid action and stay on the original goal.`;
+    if (!allowedActions.includes(action.action)) {
+      const observation = `Action "${action.action}" was BLOCKED due to task mode ${modeResult.mode}. Allowed actions: ${allowedActions.join(', ')}. Choose a valid action and stay on the original goal.`;
       output.appendLine(`Blocked: ${action.action} (mode ${modeResult.mode})`);
       await memory.saveFailedAttempt(goal, `Iteration ${i}: action "${action.action}" blocked in ${modeResult.mode} mode.`);
       messages.push({ role: 'user', content: buildObservationPrompt(goal, i, effectiveMaxIterations, observation) });
@@ -241,12 +251,12 @@ export async function runAgentLoop(
 
     // ACT + OBSERVE (through the tool registry; allowlist enforced again as a safety net)
     progress.report({ message: `Iteration ${i}: ${action.action}...` });
-    const result = await registry.execute(toToolCall(action), modeResult.allowedActions);
+    const result = await registry.execute(toToolCall(action), allowedActions);
     output.appendLine(`Observation (${result.success ? 'ok' : 'FAILED'}): ${truncate(result.observation, 500)}`);
     seenActions.set(signature, result.observation);
     noProgressCount = 0; // an executed action is progress, even when it fails
 
-    if (result.success && action.action === 'write_file') {
+    if (result.success && WRITE_ACTIONS.includes(action.action)) {
       hadSuccessfulWrite = true;
     }
     if (result.success && action.action === 'run_command') {
@@ -434,7 +444,17 @@ export function parseAction(raw: string): AgentAction | undefined {
     return undefined;
   }
   const a = parsed as Partial<AgentAction>;
-  const validActions = ['read_file', 'search_code', 'write_file', 'run_command', 'final_answer'];
+  const validActions = [
+    'read_file',
+    'search_code',
+    'write_file',
+    'create_file',
+    'replace_file',
+    'replace_range',
+    'apply_patch',
+    'run_command',
+    'final_answer'
+  ];
   if (!a.action || !validActions.includes(a.action)) {
     return undefined;
   }
@@ -450,15 +470,25 @@ export function parseAction(raw: string): AgentAction | undefined {
     const v = input?.[key];
     return typeof v === 'string' ? v : undefined;
   };
+  const pickNum = (top: unknown, key: string): number | undefined => {
+    if (typeof top === 'number') return top;
+    const v = input?.[key];
+    return typeof v === 'number' ? v : undefined;
+  };
   const path = pick(a.path, 'path');
   const query = pick(a.query, 'query');
   const content = pick(a.content, 'content');
   const command = pick(a.command, 'command');
+  const patch = pick(a.patch, 'patch');
+  const startLine = pickNum(a.startLine, 'startLine');
+  const endLine = pickNum(a.endLine, 'endLine');
 
   // Validate required fields per action.
   if (a.action === 'read_file' && !path) return undefined;
   if (a.action === 'search_code' && !query) return undefined;
-  if (a.action === 'write_file' && (!path || content === undefined)) return undefined;
+  if ((a.action === 'write_file' || a.action === 'create_file' || a.action === 'replace_file') && (!path || content === undefined)) return undefined;
+  if (a.action === 'replace_range' && (!path || content === undefined || startLine === undefined || endLine === undefined)) return undefined;
+  if (a.action === 'apply_patch' && (!path || !patch)) return undefined;
   if (a.action === 'run_command' && !command) return undefined;
 
   return {
@@ -468,6 +498,9 @@ export function parseAction(raw: string): AgentAction | undefined {
     query,
     content,
     command,
+    startLine,
+    endLine,
+    patch,
     answer: a.answer,
     evidence: Array.isArray(a.evidence) ? a.evidence.filter((e): e is string => typeof e === 'string') : undefined,
     input
@@ -481,6 +514,9 @@ export function toToolCall(action: AgentAction): ToolCall {
   if (action.query !== undefined) input.query = action.query;
   if (action.content !== undefined) input.content = action.content;
   if (action.command !== undefined) input.command = action.command;
+  if (action.startLine !== undefined) input.startLine = action.startLine;
+  if (action.endLine !== undefined) input.endLine = action.endLine;
+  if (action.patch !== undefined) input.patch = action.patch;
   // The model's thought doubles as the approval-dialog reason.
   input.reason = action.thought;
   return { name: action.action, input };

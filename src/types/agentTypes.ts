@@ -6,8 +6,21 @@ export type AgentActionType =
   | 'read_file'
   | 'search_code'
   | 'write_file'
+  | 'create_file'
+  | 'replace_file'
+  | 'replace_range'
+  | 'apply_patch'
   | 'run_command'
   | 'final_answer';
+
+/** Actions that modify files; allowed wherever write_file is allowed. */
+export const WRITE_ACTIONS: AgentActionType[] = [
+  'write_file',
+  'create_file',
+  'replace_file',
+  'replace_range',
+  'apply_patch'
+];
 
 /** Detected task mode; controls which actions are allowed. */
 export type TaskMode =
@@ -31,6 +44,12 @@ export interface AgentAction {
   content?: string;
   /** Shell command to run (run_command). */
   command?: string;
+  /** First line of the range, 1-based inclusive (replace_range). */
+  startLine?: number;
+  /** Last line of the range, 1-based inclusive (replace_range). */
+  endLine?: number;
+  /** Unified diff to apply (apply_patch). */
+  patch?: string;
   /** Final answer text (final_answer). */
   answer?: string;
   /** Files used as evidence for the final answer. */
@@ -136,12 +155,25 @@ export const AGENT_ACTION_SCHEMA = {
     thought: { type: 'string' },
     action: {
       type: 'string',
-      enum: ['read_file', 'search_code', 'write_file', 'run_command', 'final_answer']
+      enum: [
+        'read_file',
+        'search_code',
+        'write_file',
+        'create_file',
+        'replace_file',
+        'replace_range',
+        'apply_patch',
+        'run_command',
+        'final_answer'
+      ]
     },
     path: { type: 'string' },
     query: { type: 'string' },
     content: { type: 'string' },
     command: { type: 'string' },
+    startLine: { type: 'integer' },
+    endLine: { type: 'integer' },
+    patch: { type: 'string' },
     answer: { type: 'string' },
     evidence: { type: 'array', items: { type: 'string' } },
     input: { type: 'object' }

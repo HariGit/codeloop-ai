@@ -9,6 +9,7 @@ const MAX_CMD_OUTPUT_CHARS = 12000;
 const MAX_SEARCH_RESULTS = 25;
 const COMMAND_TIMEOUT_MS = 60000;
 const PREVIEW_CHARS = 400;
+const RANGE_PREVIEW_LINES = 20;
 
 const SF_BASE = path.join('force-app', 'main', 'default');
 
@@ -111,7 +112,7 @@ function resolveSafe(workspaceRoot: string, relPath: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// read_file safety — sensitive files can never be read
+// read_file safety — sensitive files can never be read (or edited)
 // ---------------------------------------------------------------------------
 
 /** Salesforce/code sources exempt from the credentials-keyword filename check
@@ -221,18 +222,18 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
 
   // -- Salesforce shortcuts for identifier-style queries --------------------
   if (isApexIdentifier(q)) {
-    const classesRel = `${SF_BASE.split(path.sep).join('/')}/classes`;
+    const sfBaseRel = SF_BASE.split(path.sep).join('/');
     const classesDir = path.join(workspaceRoot, SF_BASE, 'classes');
 
     // 1. Exact class file first.
     if (await fileExists(path.join(classesDir, `${q}.cls`))) {
-      results.push(`[exact class] ${classesRel}/${q}.cls`);
+      results.push(`[exact class] ${sfBaseRel}/classes/${q}.cls`);
     }
 
     // 2. Related test classes (<Name>Test, <Name>_Test).
     for (const testName of [`${q}Test.cls`, `${q}_Test.cls`]) {
       if (await fileExists(path.join(classesDir, testName))) {
-        results.push(`[test class] ${classesRel}/${testName}`);
+        results.push(`[test class] ${sfBaseRel}/classes/${testName}`);
       }
     }
 
@@ -244,7 +245,7 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
       const lines = content.split('\n');
       for (let i = 0; i < lines.length; i++) {
         if (controllerPattern.test(lines[i])) {
-          results.push(`[vf page] ${SF_BASE.split(path.sep).join('/')}/pages/${page}:${i + 1}: ${lines[i].trim().slice(0, 200)}`);
+          results.push(`[vf page] ${sfBaseRel}/pages/${page}:${i + 1}: ${lines[i].trim().slice(0, 200)}`);
           break;
         }
       }
@@ -254,7 +255,7 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
     const lwcDir = path.join(workspaceRoot, SF_BASE, 'lwc');
     for (const dirName of await listDirsSafe(lwcDir)) {
       if (dirName.toLowerCase() === q.toLowerCase()) {
-        results.push(`[lwc component] ${SF_BASE.split(path.sep).join('/')}/lwc/${dirName}/`);
+        results.push(`[lwc component] ${sfBaseRel}/lwc/${dirName}/`);
       }
     }
 
@@ -262,7 +263,7 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
     const flowsDir = path.join(workspaceRoot, SF_BASE, 'flows');
     for (const flowFile of await listFilesSafe(flowsDir, '.flow-meta.xml')) {
       if (flowFile.toLowerCase().startsWith(q.toLowerCase())) {
-        results.push(`[flow] ${SF_BASE.split(path.sep).join('/')}/flows/${flowFile}`);
+        results.push(`[flow] ${sfBaseRel}/flows/${flowFile}`);
       }
     }
   }
@@ -306,57 +307,308 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
 }
 
 // ---------------------------------------------------------------------------
-// write_file / run_command
+// File editing tools — create_file / replace_file / replace_range / apply_patch
+// All require user approval; sensitive paths are blocked for editing too.
 // ---------------------------------------------------------------------------
 
-// write_file — approval with path, reason, and preview
+async function askApproval(message: string, detail: string): Promise<boolean> {
+  const choice = await vscode.window.showWarningMessage(message, { modal: true, detail }, 'Approve', 'Reject');
+  return choice === 'Approve';
+}
 
-export async function writeFile(
+/** Shared pre-checks for all editing tools. Returns the full path or a failure. */
+async function editPrecheck(
+  workspaceRoot: string,
+  tool: string,
+  relPath: string
+): Promise<{ full?: string; fail?: ActionResult }> {
+  const check = isBlockedReadPath(relPath);
+  if (check.blocked) {
+    await logAction(workspaceRoot, tool, relPath, 'BLOCKED', check.reason);
+    return {
+      fail: {
+        success: false,
+        observation: `Edit BLOCKED for "${relPath}" (${check.reason}). This file can never be modified by the agent.`
+      }
+    };
+  }
+  try {
+    return { full: resolveSafe(workspaceRoot, relPath) };
+  } catch (err) {
+    return { fail: { success: false, observation: (err as Error).message } };
+  }
+}
+
+/** create_file — creates a NEW file only; fails if the file exists. */
+export async function createFile(
   workspaceRoot: string,
   relPath: string,
   content: string,
   reason = ''
 ): Promise<ActionResult> {
-  let full: string;
-  try {
-    full = resolveSafe(workspaceRoot, relPath);
-  } catch (err) {
-    return { success: false, observation: (err as Error).message };
+  const pre = await editPrecheck(workspaceRoot, 'create_file', relPath);
+  if (pre.fail) return pre.fail;
+  const full = pre.full!;
+
+  if (await fileExists(full)) {
+    return {
+      success: false,
+      observation: `create_file failed: "${relPath}" already exists. Use replace_range or apply_patch to modify it.`
+    };
   }
 
-  const exists = await fileExists(full);
   const preview = content.slice(0, PREVIEW_CHARS) + (content.length > PREVIEW_CHARS ? '\n…(truncated)' : '');
   const detail = [
     `File: ${relPath}`,
     `Reason: ${reason || '(no reason provided)'}`,
-    `Change: ${exists ? 'OVERWRITE existing file' : 'create new file'} (${content.length} chars)`,
+    `Change: create NEW file (${content.length} chars)`,
     '',
     'Preview:',
     preview
   ].join('\n');
 
-  const choice = await vscode.window.showWarningMessage(
-    `CodeLoop AI wants to ${exists ? 'overwrite' : 'create'} a file. Approve?`,
-    { modal: true, detail },
-    'Approve',
-    'Reject'
-  );
-  if (choice !== 'Approve') {
-    await logAction(workspaceRoot, 'write_file', relPath, 'REJECTED', reason);
-    return { success: false, observation: `User rejected writing to ${relPath}.` };
+  if (!(await askApproval('CodeLoop AI wants to create a new file. Approve?', detail))) {
+    await logAction(workspaceRoot, 'create_file', relPath, 'REJECTED', reason);
+    return { success: false, observation: `User rejected creating ${relPath}.` };
   }
 
   try {
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, content, 'utf8');
-    await logAction(workspaceRoot, 'write_file', relPath, 'APPROVED', `wrote ${content.length} chars`);
+    await logAction(workspaceRoot, 'create_file', relPath, 'APPROVED', `created ${content.length} chars`);
+    return { success: true, observation: `Created ${relPath} (${content.length} chars).` };
+  } catch (err) {
+    return { success: false, observation: `Failed to create ${relPath}: ${(err as Error).message}` };
+  }
+}
+
+/** replace_file — full overwrite; HIGH risk approval. Creates the file if missing (legacy behavior). */
+export async function replaceFile(
+  workspaceRoot: string,
+  relPath: string,
+  content: string,
+  reason = ''
+): Promise<ActionResult> {
+  const pre = await editPrecheck(workspaceRoot, 'replace_file', relPath);
+  if (pre.fail) return pre.fail;
+  const full = pre.full!;
+
+  const exists = await fileExists(full);
+  const oldSize = exists ? (await readSafe(full)).length : 0;
+  const preview = content.slice(0, PREVIEW_CHARS) + (content.length > PREVIEW_CHARS ? '\n…(truncated)' : '');
+  const detail = [
+    `File: ${relPath}`,
+    `Reason: ${reason || '(no reason provided)'}`,
+    `Change: ${exists ? `FULL OVERWRITE (HIGH risk) — replaces ${oldSize} chars with ${content.length} chars` : `create new file (${content.length} chars)`}`,
+    exists ? 'Consider replace_range or apply_patch for targeted edits.' : '',
+    '',
+    'Preview of new content:',
+    preview
+  ].filter(Boolean).join('\n');
+
+  if (!(await askApproval(`CodeLoop AI wants to ${exists ? 'OVERWRITE a full file (HIGH risk)' : 'create a file'}. Approve?`, detail))) {
+    await logAction(workspaceRoot, 'replace_file', relPath, 'REJECTED', reason);
+    return { success: false, observation: `User rejected overwriting ${relPath}.` };
+  }
+
+  try {
+    await fs.mkdir(path.dirname(full), { recursive: true });
+    await fs.writeFile(full, content, 'utf8');
+    await logAction(workspaceRoot, 'replace_file', relPath, 'APPROVED', `wrote ${content.length} chars (was ${oldSize})`);
     return { success: true, observation: `Wrote ${content.length} chars to ${relPath}.` };
   } catch (err) {
     return { success: false, observation: `Failed to write ${relPath}: ${(err as Error).message}` };
   }
 }
 
+/** write_file — legacy alias, maps to replace_file. */
+export async function writeFile(
+  workspaceRoot: string,
+  relPath: string,
+  content: string,
+  reason = ''
+): Promise<ActionResult> {
+  return replaceFile(workspaceRoot, relPath, content, reason);
+}
+
+/** replace_range — replaces lines startLine..endLine (1-based, inclusive) with new content. */
+export async function replaceRange(
+  workspaceRoot: string,
+  relPath: string,
+  startLine: number,
+  endLine: number,
+  newContent: string,
+  reason = ''
+): Promise<ActionResult> {
+  const pre = await editPrecheck(workspaceRoot, 'replace_range', relPath);
+  if (pre.fail) return pre.fail;
+  const full = pre.full!;
+
+  if (!(await fileExists(full))) {
+    return { success: false, observation: `replace_range failed: "${relPath}" does not exist. Use create_file for new files.` };
+  }
+  const original = await readSafe(full);
+  const lines = original.split('\n');
+  if (!Number.isInteger(startLine) || !Number.isInteger(endLine) || startLine < 1 || endLine < startLine || endLine > lines.length) {
+    return {
+      success: false,
+      observation: `replace_range failed: invalid range ${startLine}-${endLine} (file has ${lines.length} lines).`
+    };
+  }
+
+  const before = lines.slice(startLine - 1, endLine);
+  const afterLines = newContent.split('\n');
+  const clip = (arr: string[]) =>
+    arr.slice(0, RANGE_PREVIEW_LINES).join('\n') + (arr.length > RANGE_PREVIEW_LINES ? `\n…(${arr.length - RANGE_PREVIEW_LINES} more lines)` : '');
+
+  const detail = [
+    `File: ${relPath}`,
+    `Reason: ${reason || '(no reason provided)'}`,
+    `Change: replace lines ${startLine}-${endLine} (${before.length} line(s) → ${afterLines.length} line(s))`,
+    '',
+    'BEFORE:',
+    clip(before),
+    '',
+    'AFTER:',
+    clip(afterLines)
+  ].join('\n');
+
+  if (!(await askApproval('CodeLoop AI wants to edit a line range. Approve?', detail))) {
+    await logAction(workspaceRoot, 'replace_range', `${relPath}:${startLine}-${endLine}`, 'REJECTED', reason);
+    return { success: false, observation: `User rejected editing ${relPath} lines ${startLine}-${endLine}.` };
+  }
+
+  try {
+    const updated = [...lines.slice(0, startLine - 1), ...afterLines, ...lines.slice(endLine)].join('\n');
+    await fs.writeFile(full, updated, 'utf8');
+    await logAction(workspaceRoot, 'replace_range', `${relPath}:${startLine}-${endLine}`, 'APPROVED', `${before.length} → ${afterLines.length} lines`);
+    return {
+      success: true,
+      observation: `Replaced lines ${startLine}-${endLine} in ${relPath} (file was ${lines.length} lines, now ${lines.length - before.length + afterLines.length}).`
+    };
+  } catch (err) {
+    return { success: false, observation: `Failed to edit ${relPath}: ${(err as Error).message}` };
+  }
+}
+
+/** Apply a unified diff to text. Strict context matching; clear errors. */
+export function applyUnifiedPatch(original: string, patch: string): { ok: boolean; result?: string; error?: string } {
+  const origLines = original.split('\n');
+  const patchLines = patch.split('\n');
+  const out: string[] = [];
+  let origIdx = 0;
+  let i = 0;
+  let sawHunk = false;
+
+  while (i < patchLines.length) {
+    const line = patchLines[i];
+    if (line.startsWith('---') || line.startsWith('+++') || line.startsWith('diff ') || line.startsWith('index ')) {
+      i++;
+      continue;
+    }
+    const m = line.match(/^@@\s*-(\d+)(?:,(\d+))?\s*\+(\d+)(?:,(\d+))?\s*@@/);
+    if (!m) {
+      i++;
+      continue;
+    }
+    sawHunk = true;
+    const hunkStart = parseInt(m[1], 10) - 1; // 0-based index of first old line
+    if (hunkStart < origIdx) {
+      return { ok: false, error: 'overlapping or out-of-order hunks' };
+    }
+    while (origIdx < hunkStart) {
+      if (origIdx >= origLines.length) {
+        return { ok: false, error: `hunk starts beyond end of file (line ${hunkStart + 1}, file has ${origLines.length} lines)` };
+      }
+      out.push(origLines[origIdx++]);
+    }
+    // Consume exactly the line counts the hunk header declares.
+    let oldRemaining = m[2] !== undefined ? parseInt(m[2], 10) : 1;
+    let newRemaining = m[4] !== undefined ? parseInt(m[4], 10) : 1;
+    i++;
+    while (i < patchLines.length && (oldRemaining > 0 || newRemaining > 0)) {
+      const pl = patchLines[i];
+      if (pl.startsWith('-')) {
+        if (origLines[origIdx] !== pl.slice(1)) {
+          return { ok: false, error: `context mismatch at line ${origIdx + 1}: patch expects "${(pl.slice(1)).slice(0, 80)}" but file has "${(origLines[origIdx] ?? '(end of file)').slice(0, 80)}"` };
+        }
+        origIdx++;
+        oldRemaining--;
+      } else if (pl.startsWith('+')) {
+        out.push(pl.slice(1));
+        newRemaining--;
+      } else if (pl.startsWith('\\')) {
+        // "\ No newline at end of file" — ignore.
+      } else {
+        // Context line (leading space; empty line = empty context line).
+        const ctx = pl.startsWith(' ') ? pl.slice(1) : pl;
+        if (origLines[origIdx] !== ctx) {
+          return { ok: false, error: `context mismatch at line ${origIdx + 1}: patch expects "${ctx.slice(0, 80)}" but file has "${(origLines[origIdx] ?? '(end of file)').slice(0, 80)}"` };
+        }
+        out.push(origLines[origIdx++]);
+        oldRemaining--;
+        newRemaining--;
+      }
+      i++;
+    }
+  }
+
+  if (!sawHunk) {
+    return { ok: false, error: 'no @@ hunks found — provide a unified diff' };
+  }
+  while (origIdx < origLines.length) {
+    out.push(origLines[origIdx++]);
+  }
+  return { ok: true, result: out.join('\n') };
+}
+
+/** apply_patch — applies a unified diff to an existing file. */
+export async function applyPatch(
+  workspaceRoot: string,
+  relPath: string,
+  patch: string,
+  reason = ''
+): Promise<ActionResult> {
+  const pre = await editPrecheck(workspaceRoot, 'apply_patch', relPath);
+  if (pre.fail) return pre.fail;
+  const full = pre.full!;
+
+  if (!(await fileExists(full))) {
+    return { success: false, observation: `apply_patch failed: "${relPath}" does not exist. Use create_file for new files.` };
+  }
+  const original = await readSafe(full);
+  const applied = applyUnifiedPatch(original, patch);
+  if (!applied.ok) {
+    return { success: false, observation: `apply_patch failed for ${relPath}: ${applied.error}` };
+  }
+
+  const patchPreview = patch.slice(0, 1200) + (patch.length > 1200 ? '\n…(truncated)' : '');
+  const detail = [
+    `File: ${relPath}`,
+    `Reason: ${reason || '(no reason provided)'}`,
+    `Change: apply unified diff (${original.length} chars → ${applied.result!.length} chars)`,
+    '',
+    'Patch:',
+    patchPreview
+  ].join('\n');
+
+  if (!(await askApproval('CodeLoop AI wants to apply a patch. Approve?', detail))) {
+    await logAction(workspaceRoot, 'apply_patch', relPath, 'REJECTED', reason);
+    return { success: false, observation: `User rejected patching ${relPath}.` };
+  }
+
+  try {
+    await fs.writeFile(full, applied.result!, 'utf8');
+    await logAction(workspaceRoot, 'apply_patch', relPath, 'APPROVED', `${original.length} → ${applied.result!.length} chars`);
+    return { success: true, observation: `Applied patch to ${relPath} (${original.length} → ${applied.result!.length} chars).` };
+  } catch (err) {
+    return { success: false, observation: `Failed to patch ${relPath}: ${(err as Error).message}` };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // run_command — approval with command, reason, and risk level
+// ---------------------------------------------------------------------------
 
 export async function runCommand(
   workspaceRoot: string,
@@ -382,13 +634,7 @@ export async function runCommand(
     `Risk level: ${risk.level}${risk.note ? ` — ${risk.note}` : ''}`
   ].join('\n');
 
-  const choice = await vscode.window.showWarningMessage(
-    `CodeLoop AI wants to run a ${risk.level} risk command. Approve?`,
-    { modal: true, detail },
-    'Approve',
-    'Reject'
-  );
-  if (choice !== 'Approve') {
+  if (!(await askApproval(`CodeLoop AI wants to run a ${risk.level} risk command. Approve?`, detail))) {
     await logAction(workspaceRoot, 'run_command', command, 'REJECTED', reason);
     return { success: false, observation: 'User rejected running the command.' };
   }

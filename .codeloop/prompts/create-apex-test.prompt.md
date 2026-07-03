@@ -10,7 +10,7 @@ Steps:
 1. Read {CLASS_NAME} completely — every public method and exception path.
 2. Search for existing test data factories or @TestSetup patterns in this project and reuse them.
 3. Read one or two existing test classes to match naming and structure conventions.
-4. Write the test class ({CLASS_NAME}Test) via write_file.
+4. Write the test class ({CLASS_NAME}Test) via create_file (it is a new file).
 
 Requirements:
 - @isTest, SeeAllData=false
