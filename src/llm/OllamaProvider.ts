@@ -15,6 +15,10 @@ export class OllamaProvider implements ModelProvider {
     this.endpoint = config.endpoint || DEFAULT_OLLAMA_ENDPOINT;
   }
 
+  getInfo(): string {
+    return `${this.config.model} @ ${this.endpoint} (num_ctx ${this.config.numCtx ?? 32768})`;
+  }
+
   /** Send chat messages, return the assistant's text content. */
   async chat(messages: ChatMessage[], opts?: ChatOptions): Promise<string> {
     let response: Response;

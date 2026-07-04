@@ -26,8 +26,17 @@ interface VsCodeLmModel {
 
 export class VsCodeLanguageModelProvider implements ModelProvider {
   readonly name = 'vscode-lm';
+  private selected?: VsCodeLmModel;
 
   constructor(private readonly config: AgentConfig) {}
+
+  getInfo(): string {
+    if (!this.selected) {
+      return `requested family "${this.config.model}" (not selected yet)`;
+    }
+    const exact = this.selected.family.toLowerCase() === (this.config.model ?? '').toLowerCase();
+    return `${this.selected.id} (family: ${this.selected.family})${exact ? '' : ` — FALLBACK, requested family "${this.config.model}" not found`}`;
+  }
 
   private getLmApi(): VsCodeLmApi {
     const lm = (vscode as unknown as { lm?: VsCodeLmApi }).lm;
@@ -54,6 +63,7 @@ export class VsCodeLanguageModelProvider implements ModelProvider {
         'No VS Code language models available. Install/sign in to GitHub Copilot, or check "codeloopAi.model" (model family, e.g. "gpt-4o").'
       );
     }
+    this.selected = models[0];
     return models[0];
   }
 

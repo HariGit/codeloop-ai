@@ -12,6 +12,8 @@ export interface ModelProvider {
   chat(messages: ChatMessage[], opts?: ChatOptions): Promise<string>;
   /** Quick connectivity + model availability check; throws with a clear message. */
   healthCheck(): Promise<void>;
+  /** Human-readable description of the model actually in use (after healthCheck). */
+  getInfo?(): string;
 }
 
 /** Error with a user-friendly message for known provider failures. */

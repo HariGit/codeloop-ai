@@ -106,7 +106,10 @@ export async function runAgentLoop(
   registry.registerProvider(new McpToolProvider());
 
   progress.report({ message: `Checking model provider (${client.name})...` });
-  await client.healthCheck(); // Throws OllamaError with a clear message if not available.
+  await client.healthCheck(); // Throws with a clear message if not available.
+  if (client.getInfo) {
+    output.appendLine(`Model: ${client.getInfo()}`);
+  }
 
   // 1. Detect the Salesforce task mode from the goal.
   const modeResult: TaskModeResult = detectSalesforceTaskMode(goal);
