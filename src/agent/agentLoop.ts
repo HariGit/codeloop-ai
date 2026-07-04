@@ -61,16 +61,26 @@ export function resolveMaxIterations(loop: LoopConfig, mode: string): number {
  * ran/executed/tested/deployed require a successful run_command.
  */
 export function validateFinalAnswer(answer: string, hadWrite: boolean, hadRun: boolean): string[] {
-  const violations: string[] = [];
-  const writeClaims = answer.match(/\b(created|updated|modified|wrote|saved)\b/gi) ?? [];
-  const runClaims = answer.match(/\b(ran|executed|tested|deployed)\b/gi) ?? [];
-  if (writeClaims.length > 0 && !hadWrite) {
-    violations.push(...new Set(writeClaims.map(w => w.toLowerCase())));
+  // Only AGENT claims count — "I created the file" / "the test class was
+  // created". Descriptions of system behavior ("when a Case is created,
+  // the trigger fires") are legitimate in explanations and must pass.
+  const WRITE_CLAIM =
+    /\b(?:i|we)(?:\s+have|\s+just|'ve)?\s+(?:successfully\s+|now\s+)?(created|updated|modified|wrote|saved)\b|\b(?:file|files|class|test\s+class)\s+(?:named\s+\S+\s+)?(?:has\s+been|have\s+been|was|were)\s+(created|updated|modified|written|saved)\b/gi;
+  const RUN_CLAIM =
+    /\b(?:i|we)(?:\s+have|\s+just|'ve)?\s+(?:successfully\s+|now\s+)?(ran|executed|tested|deployed)\b|\b(?:tests?|command|deployment)\s+(?:has\s+been|have\s+been|was|were)\s+(run|executed|deployed)\b/gi;
+
+  const violations = new Set<string>();
+  if (!hadWrite) {
+    for (const m of answer.matchAll(WRITE_CLAIM)) {
+      violations.add((m[1] ?? m[2]).toLowerCase());
+    }
   }
-  if (runClaims.length > 0 && !hadRun) {
-    violations.push(...new Set(runClaims.map(w => w.toLowerCase())));
+  if (!hadRun) {
+    for (const m of answer.matchAll(RUN_CLAIM)) {
+      violations.add((m[1] ?? m[2]).toLowerCase());
+    }
   }
-  return violations;
+  return [...violations];
 }
 
 /**

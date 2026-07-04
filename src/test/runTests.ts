@@ -35,7 +35,7 @@ Module._load = function (request: string, ...args: unknown[]) {
 // Load modules under test AFTER the stub is installed.
 const { detectSalesforceTaskMode } = require('../agent/taskModeDetector');
 const { validateFinalAnswer, parseAction } = require('../agent/agentLoop');
-const { assessCommandRisk } = require('../agent/tools');
+const { assessCommandRisk, lwcTagToCamel } = require('../agent/tools');
 const { redactSecrets } = require('../agent/memory');
 
 // ---------------------------------------------------------------------------
@@ -124,6 +124,18 @@ test('claims pass when matching action succeeded', () => {
   assertEqual(validateFinalAnswer('I executed the tests', false, true).length, 0, 'run-backed claim');
 });
 
+test('descriptive system behavior is NOT a violation', () => {
+  const answer =
+    'When a Case record is created or updated, LA_CaseMaster_Trigger fires and the handler routes the event. Records are saved by the service after validation.';
+  assertEqual(validateFinalAnswer(answer, false, false).length, 0, 'violations');
+});
+
+test('passive agent claims still caught', () => {
+  const v = validateFinalAnswer('The test class was created and the tests were run.', false, false);
+  assert(v.includes('created'), 'expected passive created claim');
+  assert(v.includes('run'), 'expected passive run claim');
+});
+
 // ---------------------------------------------------------------------------
 // 3. parseAction
 // ---------------------------------------------------------------------------
@@ -188,6 +200,25 @@ test('npm install -> HIGH', () => {
 
 test('git reset --hard -> BLOCKED', () => {
   assertEqual(assessCommandRisk('git reset --hard HEAD~1').blocked, true, 'blocked');
+});
+
+// ---------------------------------------------------------------------------
+// 4b. lwcTagToCamel
+// ---------------------------------------------------------------------------
+
+console.log('\nlwcTagToCamel');
+
+test('c-la-case-creation-flow -> laCaseCreationFlow', () => {
+  assertEqual(lwcTagToCamel('c-la-case-creation-flow'), 'laCaseCreationFlow');
+});
+
+test('c-la-home -> laHome', () => {
+  assertEqual(lwcTagToCamel('c-la-home'), 'laHome');
+});
+
+test('non-tag input -> undefined', () => {
+  assertEqual(lwcTagToCamel('AccountService'), undefined);
+  assertEqual(lwcTagToCamel('c-'), undefined);
 });
 
 // ---------------------------------------------------------------------------

@@ -206,6 +206,15 @@ function isApexIdentifier(query: string): boolean {
   return /^[A-Za-z][A-Za-z0-9_]{1,79}$/.test(query);
 }
 
+/** Convert an LWC kebab-case tag (c-la-home) to its folder name (laHome). */
+export function lwcTagToCamel(tag: string): string | undefined {
+  const m = tag.trim().match(/^c-([a-z0-9]+(?:-[a-z0-9]+)*)$/i);
+  if (!m) {
+    return undefined;
+  }
+  return m[1].toLowerCase().replace(/-([a-z0-9])/g, (_s, ch: string) => ch.toUpperCase());
+}
+
 /**
  * search_code — allowed automatically.
  * For identifier queries: exact class file, test classes, Visualforce pages
@@ -213,9 +222,18 @@ function isApexIdentifier(query: string): boolean {
  * then literal references across the project (Salesforce types prioritized).
  */
 export async function searchCode(workspaceRoot: string, query: string): Promise<ActionResult> {
-  const q = query.trim();
+  let q = query.trim();
   if (!q) {
     return { success: false, observation: 'Empty search query.' };
+  }
+
+  // LWC tags like "c-la-case-creation-flow" live on disk as camelCase
+  // folders (laCaseCreationFlow) — translate before searching.
+  let interpretedNote = '';
+  const camel = lwcTagToCamel(q);
+  if (camel) {
+    interpretedNote = `Interpreted LWC tag "${q}" as component "${camel}".\n`;
+    q = camel;
   }
 
   const results: string[] = [];
@@ -251,11 +269,12 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
       }
     }
 
-    // 4. LWC component folder with a matching name.
+    // 4. LWC component folder with a matching name (bundle files listed).
     const lwcDir = path.join(workspaceRoot, SF_BASE, 'lwc');
     for (const dirName of await listDirsSafe(lwcDir)) {
       if (dirName.toLowerCase() === q.toLowerCase()) {
-        results.push(`[lwc component] ${sfBaseRel}/lwc/${dirName}/`);
+        const bundle = (await listFilesSafe(path.join(lwcDir, dirName), '')).join(', ');
+        results.push(`[lwc component] ${sfBaseRel}/lwc/${dirName}/${bundle ? ` (files: ${bundle})` : ''}`);
       }
     }
 
@@ -298,11 +317,11 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
   }
 
   if (results.length === 0) {
-    return { success: true, observation: `No matches found for "${q}".` };
+    return { success: true, observation: `${interpretedNote}No matches found for "${q}".` };
   }
   return {
     success: true,
-    observation: `Found ${results.length} result(s) for "${q}" (max ${MAX_SEARCH_RESULTS}):\n${results.join('\n')}`
+    observation: `${interpretedNote}Found ${results.length} result(s) for "${q}" (max ${MAX_SEARCH_RESULTS}):\n${results.join('\n')}`
   };
 }
 
