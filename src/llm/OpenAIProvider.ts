@@ -15,6 +15,10 @@ export class OpenAIProvider implements ModelProvider {
 
   constructor(private readonly config: AgentConfig) {}
 
+  getInfo(): string {
+    return `${this.config.model} @ api.openai.com`;
+  }
+
   private getApiKey(): string {
     let key = '';
     try {

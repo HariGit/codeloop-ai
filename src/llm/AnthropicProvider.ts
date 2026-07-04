@@ -17,6 +17,10 @@ export class AnthropicProvider implements ModelProvider {
 
   constructor(private readonly config: AgentConfig) {}
 
+  getInfo(): string {
+    return `${this.config.model} @ api.anthropic.com`;
+  }
+
   private getApiKey(): string {
     let key = '';
     try {
