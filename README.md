@@ -1,59 +1,63 @@
 # CodeLoop AI
 
-A Salesforce-aware recursive coding agent for VS Code. Runs fully local by default with your own Ollama model (`qwen3-coder:latest`) — no cloud, no API keys, no data leaving your machine. Optionally switch to Claude (Anthropic), OpenAI, or VS Code's built-in Language Model API (Copilot). The agent "learns" through markdown memory files — not model training.
+![License: MIT](https://img.shields.io/badge/license-MIT-green) ![VS Code](https://img.shields.io/badge/VS%20Code-%E2%89%A51.85-blue) ![Tests](https://img.shields.io/badge/tests-23%20passing-brightgreen) ![Local first](https://img.shields.io/badge/local--first-Ollama-orange)
 
-## How it works
+A Salesforce-aware recursive coding agent for VS Code. Runs fully local by default with your own Ollama model — no cloud, no API keys, no data leaving your machine. Optionally switch to Claude (Anthropic), OpenAI, or VS Code's Language Model API (Copilot). The agent "learns" through markdown memory files — not model training.
+
+![CodeLoop AI compresses project context: without it an agent reads ~50,000 tokens of raw files; CodeLoop scans, compresses, and shares one pre-digested map of about 2,000 tokens](docs/images/codeloop-token-diet.svg)
 
 ```
 Goal → Think → Act → Observe → Reflect → Improve Plan → Repeat (per-mode iteration limit)
 ```
 
-Every run: the goal is classified into a task mode → Salesforce instructions are loaded from `.codeloop/` → the model picks one JSON action per iteration → results feed back as observations → a structured reflection is saved to memory.
+Every run: the goal is classified into a task mode → Salesforce instructions load from `.codeloop/` → the model picks one JSON action per iteration → results feed back as observations → a structured reflection is saved to memory.
 
-## Requirements
+## Quick start
 
-- VS Code 1.85+
-- Node.js 18+
-- [Ollama](https://ollama.com) running locally: `ollama serve`
-- The model: `ollama pull qwen3-coder:latest`
-
-## Install
+Requires VS Code 1.85+, Node.js 18+, and [Ollama](https://ollama.com) running locally (`ollama serve`) with `ollama pull qwen3-coder:latest`.
 
 ```bash
 git clone https://github.com/HariGit/codeloop-ai.git
 cd codeloop-ai
-npm install
-npm run compile
-```
-
-Run in dev mode with `F5`, or install permanently:
-
-```bash
-npm install -g @vscode/vsce
-vsce package
+npm install && npm run compile
+npm install -g @vscode/vsce && vsce package
 code --install-extension codeloop-ai-0.1.0.vsix
 ```
+
+Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Project** once, and go. Output appears in **View → Output → CodeLoop AI**.
 
 ## Commands
 
 | Command | Input | What it does |
 |---|---|---|
-| **CodeLoop AI: Start Agent** | free-form goal | Runs the agent with automatic mode detection |
-| **CodeLoop AI: Explain Apex Class** | class name | Read-only explanation with a fixed 12-section format |
-| **CodeLoop AI: Review Apex Class** | class name | Best-practices / bulkification / security review (read-only) |
-| **CodeLoop AI: Create Apex Test Class** | class name | Writes a test class (with your approval) |
-| **CodeLoop AI: Analyze Flow Migration** | Flow API name | Analysis + migration plan mapped to the trigger framework |
-| **CodeLoop AI: Architecture Overview** | object / class / feature / flow / module | 18-section architecture document with Mermaid diagrams |
-| **CodeLoop AI: Analyze Apex Debug Log** | log file path | LogLens analysis: root cause, exceptions, governor risks |
-| **CodeLoop AI: Deployment Review** | metadata / release notes | Risk assessment with validate/deploy commands |
-| **CodeLoop AI: Scan Salesforce Project** | — | Deep metadata scan saved to `.agent-memory/project-summary.md` |
-| **CodeLoop AI: Generate Agent Context Files** | pick targets | Compiles CLAUDE.md / AGENTS.md / copilot-instructions.md for other agents |
-
-Output appears in **View → Output → CodeLoop AI**.
+| **Start Agent** | free-form goal | Runs the agent with automatic mode detection |
+| **Explain Apex Class** | class name | Read-only 12-section explanation |
+| **Review Apex Class** | class name | Best-practices / bulkification / security review |
+| **Create Apex Test Class** | class name | Writes a test class (with your approval) |
+| **Analyze Flow Migration** | Flow API name | Analysis + migration plan |
+| **Architecture Overview** | object / class / feature | 18-section document with Mermaid diagrams |
+| **Analyze Apex Debug Log** | log file path | LogLens: root cause, exceptions, governor risks |
+| **Deployment Review** | metadata / notes | Risk assessment + validate/deploy commands |
+| **Scan Salesforce Project** | — | Deep metadata scan → `.agent-memory/project-summary.md` |
+| **Generate Agent Context Files** | pick targets | CLAUDE.md / AGENTS.md / copilot-instructions.md |
 
 ## Feature guide
 
-### 1. Scan Salesforce Project — know your org first
+<details>
+<summary><b>1. Start Agent — the free-form loop</b></summary>
+
+![Start Agent feature](docs/images/guide-start-agent.svg)
+
+1. `Ctrl+Shift+P` → **CodeLoop AI: Start Agent** → type any goal, e.g. *"find where case comments trigger emails and check for hardcoded addresses"*.
+2. **The gate:** your phrasing picks the task mode — "explain/review" stays read-only, "fix/create" unlocks editing, "debug log" unlocks LogLens. The chosen mode is the first line in the output channel.
+3. **The laps:** each iteration the model returns one JSON action (search / read / edit / run / answer). CodeLoop executes it — enforcing the mode allowlist, blocking sensitive paths, asking approval for writes — and feeds the observation back with the goal re-anchored.
+4. **The guards:** duplicate actions are replayed from cache, repeated blocked actions stop the run, the last lap demands an answer, and a wrap-up guarantees you never get nothing.
+5. **The exit:** the final answer is validated against what actually happened and printed with evidence files. A reflection lands in `.agent-memory/` to improve the next run.
+
+</details>
+
+<details>
+<summary><b>2. Scan Salesforce Project — know your org first</b></summary>
 
 ![Scan feature](docs/images/guide-scan.svg)
 
@@ -62,7 +66,10 @@ Output appears in **View → Output → CodeLoop AI**.
 3. Read the result in the output channel or `.agent-memory/project-summary.md`.
 4. Re-run after big metadata changes — every agent run plans with this summary.
 
-### 2. Explain Apex Class — understand before touching
+</details>
+
+<details>
+<summary><b>3. Explain Apex Class — understand before touching</b></summary>
 
 ![Explain feature](docs/images/guide-explain.svg)
 
@@ -70,7 +77,10 @@ Output appears in **View → Output → CodeLoop AI**.
 2. The agent finds the class, its page/LWC/trigger/test, reads them, and stops.
 3. You get a 12-section explanation (Purpose → Evidence Files). It never edits anything.
 
-### 3. Review Apex Class — find the problems
+</details>
+
+<details>
+<summary><b>4. Review Apex Class — find the problems</b></summary>
 
 ![Review feature](docs/images/guide-review.svg)
 
@@ -78,7 +88,10 @@ Output appears in **View → Output → CodeLoop AI**.
 2. The agent checks the 9-point standards list: SOQL/DML in loops, bulkification, hardcoded values, sharing, tests.
 3. Findings come back ranked Critical → Low with file:line references and fixes. Read-only.
 
-### 4. Create Apex Test Class — with your approval
+</details>
+
+<details>
+<summary><b>5. Create Apex Test Class — with your approval</b></summary>
 
 ![Test feature](docs/images/guide-test.svg)
 
@@ -87,7 +100,10 @@ Output appears in **View → Output → CodeLoop AI**.
 3. An approval dialog shows the new file with a preview — nothing is written until you click Approve.
 4. Scenarios covered: positive, negative, null, and 200+ record bulk, with real assertions.
 
-### 5. Architecture Overview — the big picture
+</details>
+
+<details>
+<summary><b>6. Architecture Overview — the big picture</b></summary>
 
 ![Architecture feature](docs/images/guide-architecture.svg)
 
@@ -95,7 +111,10 @@ Output appears in **View → Output → CodeLoop AI**.
 2. A pre-scan (plain TypeScript, zero tokens) finds every related component and hands the model the inventory.
 3. The agent reads only the key files and produces an 18-section document ending with Mermaid flow + sequence diagrams.
 
-### 6. Analyze Apex Debug Log — LogLens
+</details>
+
+<details>
+<summary><b>7. Analyze Apex Debug Log — LogLens</b></summary>
 
 ![LogLens feature](docs/images/guide-loglens.svg)
 
@@ -104,71 +123,104 @@ Output appears in **View → Output → CodeLoop AI**.
 3. The extension parses the log itself — the model only sees a ~1KB structured report (timeline, call tree, SOQL/DML, exceptions, limits).
 4. The answer ends with Root Cause → Recommended Fix → Evidence Files.
 
-### 7. Generate Agent Context Files — feed the other agents
+</details>
 
-Illustrated in the [Agent context files](#agent-context-files-token-saver-for-claude-code--codex--copilot) section below.
+<details>
+<summary><b>8. Generate Agent Context Files — feed the other agents</b></summary>
+
+Illustrated by the hero image at the top of this page.
 
 1. `Ctrl+Shift+P` → **CodeLoop AI: Generate Agent Context Files**.
 2. Pick targets: CLAUDE.md, AGENTS.md, `.github/copilot-instructions.md` (all pre-selected).
-3. Claude Code / Codex / Copilot now start every session pre-oriented — your notes outside the managed block are preserved.
+3. Claude Code / Codex / Copilot now start every session pre-oriented — your notes outside the managed `<!-- CODELOOP:BEGIN/END -->` block are preserved.
+
+</details>
 
 _All illustrations in the style of [Ian Xiaohei Illustrations](https://github.com/helloianneo/ian-xiaohei-illustrations) (MIT)._
 
-## Task modes
+## Configuration
 
-The goal is classified before the loop starts. Each mode selects an agent role, prompt template, skills, an action allowlist, and an iteration limit:
+<details>
+<summary><b>Model providers — Ollama (default), Claude, OpenAI, Copilot</b></summary>
+
+| Provider | Setting requirements |
+|---|---|
+| `ollama` (default) | Ollama running locally; `codeloopAi.model` = e.g. `qwen3-coder:latest` |
+| `anthropic` | `codeloopAi.anthropicApiKey`; model e.g. `claude-sonnet-4-5` |
+| `openai` | `codeloopAi.openAiApiKey`; model e.g. `gpt-4o` |
+| `vscode-lm` | VS Code 1.90+ with Copilot signed in; model = family, e.g. `gpt-5-mini` |
+
+**Claude:** create a key at [console.anthropic.com](https://console.anthropic.com), then:
+
+```json
+"codeloopAi.provider": "anthropic",
+"codeloopAi.anthropicApiKey": "sk-ant-...",
+"codeloopAi.model": "claude-sonnet-4-5"
+```
+
+**OpenAI (Codex):** key from [platform.openai.com](https://platform.openai.com); provider `openai`, model `gpt-4o` (Chat Completions models; the dedicated Codex agent API is not wired in).
+
+**Copilot:** no key — provider `vscode-lm`, model = family in lowercase-hyphen form (`gpt-4o`, `gpt-5-mini`, `claude-sonnet-4-5`); approve the one-time consent prompt on first run. Unknown families fall back to Copilot's first available model.
+
+All providers normalize responses identically — modes, guards, approvals, and memory behave the same. Unconfigured providers fail with the exact setting name to fix. Treat API keys like passwords; never commit them.
+
+</details>
+
+<details>
+<summary><b>Settings reference</b></summary>
+
+| Setting | Default |
+|---|---|
+| `codeloopAi.provider` | `ollama` |
+| `codeloopAi.model` | `qwen3-coder:latest` |
+| `codeloopAi.ollamaEndpoint` | `http://localhost:11434/api/chat` |
+| `codeloopAi.ollamaNumCtx` | `32768` (context window; lower if RAM-constrained) |
+| `codeloopAi.anthropicApiKey` / `openAiApiKey` / `apiKey` | (empty) |
+| `codeloopAi.loop.defaultMaxIterations` | `8` |
+| `codeloopAi.loop.absoluteMaxIterations` | `20` (hard ceiling) |
+| `codeloopAi.loop.modeMaxIterations` | per-mode (EXPLAIN 4 … CREATE_TEST 10) |
+| `codeloopAi.loop.jsonRetries` / `answerValidationRetries` | `2` |
+| `codeloopAi.loop.noProgressLimit` | `2` |
+| `codeloopAi.loop.autoStopExplainAfterFiles` | `true` |
+
+</details>
+
+<details>
+<summary><b>Task modes — what the goal phrasing unlocks</b></summary>
 
 | Mode | Trigger keywords | Actions allowed | Max iterations |
 |---|---|---|---|
-| EXPLAIN_APEX | explain, guide, understand, functionality | read-only | 4 |
-| REVIEW_APEX | review, best practices, governor limits, bulkify | read-only | 6 |
-| MODIFY_APEX | fix, update, refactor, change, implement | + editing | 8 |
-| CREATE_TEST | test class, coverage, unit test | + editing + run | 10 |
-| FLOW_MIGRATION | flow to apex, migrate/convert/analyze flow | read-only | 8 |
-| LWC_WORK | lwc, component, wire, apex call | + editing | 8 |
-| INTEGRATION_API | rest api, endpoint, dto, integration | + editing | 8 |
-| DEPLOYMENT_REVIEW | deployment, package.xml, release | read-only | 6 |
-| DEBUG_LOG_ANALYSIS | debug log, apex log, log analysis | read-only + log tools | 6 |
-| ARCHITECTURE_OVERVIEW | architecture, system design, HLD, LLD | read-only | 8 |
+| EXPLAIN_APEX | explain, guide, understand | read-only | 4 |
+| REVIEW_APEX | review, best practices, bulkify | read-only | 6 |
+| MODIFY_APEX | fix, update, refactor | + editing | 8 |
+| CREATE_TEST | test class, coverage | + editing + run | 10 |
+| FLOW_MIGRATION | flow to apex, migrate flow | read-only | 8 |
+| LWC_WORK | lwc, component, wire | + editing | 8 |
+| INTEGRATION_API | rest api, endpoint, dto | + editing | 8 |
+| DEPLOYMENT_REVIEW | deployment, package.xml | read-only | 6 |
+| DEBUG_LOG_ANALYSIS | debug log, apex log | read-only + log tools | 6 |
+| ARCHITECTURE_OVERVIEW | architecture, system design, HLD | read-only | 8 |
 | GENERAL_SALESFORCE | (default) | read-only | 6 |
 
-Read-only modes gain editing/run access only when the goal explicitly asks (e.g. "review the class **and fix the code**"). Actions outside the allowlist are blocked and the model is told to choose a valid one. All limits are configurable (`codeloopAi.loop.*`), capped by `absoluteMaxIterations` (default 20).
+Read-only modes gain editing/run access only when the goal explicitly asks (e.g. "review the class **and fix the code**"). All limits configurable, capped by `absoluteMaxIterations`.
 
-## Salesforce instruction system (`.codeloop/`)
+</details>
 
-Copilot-style custom instructions, loaded automatically per task mode and injected into the system prompt:
+## Safety
 
-```
-.codeloop/
-  instructions/salesforce-instructions.md   ← global standards (always loaded)
-  agents/*.agent.md                         ← 9 role definitions (architect, apex, lwc,
-                                              flow-migration, integration, tester,
-                                              devops, security, architecture-overview)
-  prompts/*.prompt.md                       ← 7 reusable prompt templates
-  skills/*.md                               ← 8 best-practice references (incl.
-                                              system-design and hld-lld)
-```
-
-Copy this folder into each Salesforce project you analyze. Edit the files to change how the agent works — no code changes needed. Missing files are skipped silently.
-
-## Built-in Salesforce standards
-
-Trigger → Domain → Service → Selector pattern; SOQL/DML outside loops; selector classes for SOQL; bulkified logic; no hardcoded emails/ids/URLs (Custom Labels / Custom Metadata); separate request/response DTOs; test classes checked before Apex changes; clear LWC error handling; full Flow analysis before migration.
-
-## Tools and safety
+<details>
+<summary><b>Tools, approvals, and the blocklist</b></summary>
 
 | Tool | Approval |
 |---|---|
 | `read_file` | automatic (sensitive paths blocked: .env, keys, .git, .sf, credential filenames) |
-| `search_code` | automatic (Salesforce-aware, noise excluded, max 25 results) |
-| `create_file` | dialog with preview — new files only, fails if the file exists |
-| `replace_range` | dialog with BEFORE/AFTER preview of the exact lines |
+| `search_code` | automatic (Salesforce-aware, max 25 results) |
+| `create_file` | dialog with preview — new files only |
+| `replace_range` | dialog with BEFORE/AFTER of the exact lines |
 | `apply_patch` | dialog with the unified diff |
 | `replace_file` / `write_file` | dialog flagged FULL OVERWRITE (HIGH risk) |
-| `run_command` | dialog with command, reason, risk level (LOW/MEDIUM/HIGH) |
+| `run_command` | dialog with command, reason, risk level |
 | LogLens tools | automatic (read-only log analysis) |
-
-The model is instructed to prefer `replace_range`/`apply_patch` over full overwrites for existing files.
 
 **Always blocked, never executed:** `rm -rf`, `del /s`, `format`, `mkfs`, `git reset --hard`, `git clean -f`, remote scripts piped to shell, `npm install` from URLs/tarballs.
 
@@ -176,234 +228,109 @@ The model is instructed to prefer `replace_range`/`apply_patch` over full overwr
 
 Every approve/reject/block decision is logged to `.agent-memory/action-history.md`.
 
-## Anti-hallucination guards
+</details>
+
+<details>
+<summary><b>Anti-hallucination guards</b></summary>
 
 - **Final answer validation** — claims of *created/updated/modified/wrote* require a successful edit this session; *ran/executed/tested/deployed* require a successful run_command. Violations are rejected.
 - **Evidence files** — final answers list the files actually read, validated against session history.
-- **Goal anchoring + session recap** — every observation repeats the goal and lists the actions already completed.
+- **Goal anchoring + session recap** — every observation repeats the goal and the actions already completed.
 - **Duplicate guard** — repeated identical reads/searches replay the earlier result.
 - **No-progress stop** — consecutive blocked/duplicate iterations end the run early.
-- **Forced wrap-up** — if iterations run out (or the model keeps producing invalid JSON), one extra call demands a final answer from gathered context; if structured output still fails, a plain-text fallback captures the answer. You never get nothing.
-- **Structured output** — Ollama's JSON-schema `format` constrains action responses, with a large context window (`codeloopAi.ollamaNumCtx`, default 32768) so long answers don't get truncated into invalid JSON.
+- **Forced wrap-up** — if iterations run out or JSON keeps failing, an extra call (then a plain-text fallback) still extracts an answer. You never get nothing.
+- **Structured output** — Ollama's JSON-schema `format` constrains actions; a large `num_ctx` prevents truncation-mangled JSON.
 
-## Apex LogLens (debug log analysis)
+</details>
 
-The extension — not the LLM — parses Apex debug logs (`CODE_UNIT`, `METHOD_ENTRY/EXIT`, `SOQL`, `DML`, `EXCEPTION_THROWN`, `FATAL_ERROR`, `LIMIT_USAGE_FOR_NS`) and hands the model structured reports: entry point, execution timeline, method call tree, SOQL/DML lists, exceptions, governor limit usage, risk findings (repeated-SOQL/DML loop patterns, limits near thresholds), and recommendations.
+## Salesforce intelligence
 
-Tools: `analyze_debug_log`, `analyze_latest_apex_logs`, `explain_log_flow`, `find_log_exception`, `find_governor_risk`. The final answer ends with Root Cause → Recommended Fix → Evidence Files.
+<details>
+<summary><b>.codeloop/ instruction system (Copilot-style custom instructions)</b></summary>
 
-## Architecture Overview
+```
+.codeloop/
+  instructions/salesforce-instructions.md   ← global standards (always loaded)
+  agents/*.agent.md                         ← 9 role definitions
+  prompts/*.prompt.md                       ← 7 reusable prompt templates
+  skills/*.md                               ← 8 best-practice references
+```
 
-**CodeLoop AI: Architecture Overview** pre-scans the metadata around your scope (classes, triggers, selectors/services/handlers/domains, LWC, Visualforce, flows, objects, custom metadata, labels, REST resources) and injects a component inventory with dependency hints into the prompt. The model reads the key files and produces an 18-section document: Executive Summary through Recommended Target Architecture, ending with Mermaid flowchart and sequence diagrams and Evidence Files. Strictly read-only.
+Copy this folder into each Salesforce project you analyze. Edit the markdown to change how the agent works — no code changes. Built-in standards: Trigger → Domain → Service → Selector; SOQL/DML outside loops; selector classes; bulkified logic; no hardcoded values; separate request/response DTOs; tests checked before Apex changes; clear LWC error handling.
 
-## Agent context files (token saver for Claude Code / Codex / Copilot)
+</details>
 
-![CodeLoop AI compresses project context: without it an agent reads ~50,000 tokens of raw files; CodeLoop scans, compresses, and shares one pre-digested map of about 2,000 tokens](docs/images/codeloop-token-diet.svg)
+<details>
+<summary><b>Scanner, search, and memory</b></summary>
 
-_Illustration in the style of [Ian Xiaohei Illustrations](https://github.com/helloianneo/ian-xiaohei-illustrations) (MIT)._
+**Scanner** — counts all metadata; object summaries (fields/record types/validation rules); trigger and flow summaries; heuristic Apex risk scan (SOQL/DML in loops, hardcoded emails/URLs/Ids — top 50); test-coverage mapping.
 
-**Generate Agent Context Files** compiles CodeLoop's deterministic knowledge — project shape, architecture patterns, key objects/triggers/flows, top risk warnings, test gaps, your project rules, recent architecture decisions, and coding standards — into the instruction files other agents read on every session: `CLAUDE.md` (Claude Code), `AGENTS.md` (Codex/generic), and `.github/copilot-instructions.md` (Copilot). Those agents start each session already oriented instead of burning thousands of tokens rediscovering the project.
+**Search** — identifier-aware: `AccountService` returns the exact class, its test classes, VF pages using it as controller, matching LWC and Flows, then references ranked by metadata type. Noise (`.sf`, `.git`, `node_modules`, `maxRevision.json`) excluded.
 
-Content is written inside a `<!-- CODELOOP:BEGIN --> … <!-- CODELOOP:END -->` managed block — anything you write outside the block is preserved on regeneration. Re-run the command after big metadata changes.
+**Memory (`.agent-memory/`)** — `project-rules.md`, `project-summary.md`, `learned-patterns.md`, `salesforce-decisions.md` are read before every plan; `reflections.md`, `failed-attempts.md`, `action-history.md` are written as the agent works. All entries size-capped and secret-redacted.
 
-## How agents use CodeLoop
+</details>
 
-Two kinds of agents consume what CodeLoop builds — its own agent (whatever model you configure) and external agents (Claude Code, Codex, Copilot):
+<details>
+<summary><b>How agents use CodeLoop (incl. Claude Code / Codex / Copilot)</b></summary>
 
 | Feature | CodeLoop's own agent | External agents |
 |---|---|---|
-| Task modes + allowlists | automatic — goal routes to 1 of 11 modes | benefit indirectly from disciplined outputs |
-| `.codeloop/` instructions | injected into the system prompt per mode | readable by any agent ("follow .codeloop/instructions") |
-| Project scanner | reads `project-summary.md` before every plan | summarized into CLAUDE.md; full detail in `.agent-memory/` |
-| Architecture analyzer | inventory injected into ARCHITECTURE_OVERVIEW runs | the 18-section overview is a shareable document |
-| LogLens | parses logs deterministically; model sees only the ~1KB report | run the command, hand the report to any agent |
-| Safe editing + approvals | every write/command previewed and risk-assessed | `action-history.md` is an audit trail any agent can check |
-| Memory (7 files) | rules/patterns/decisions read before planning | shared brain — e.g. Claude Code reads `salesforce-decisions.md` |
-| Agent context files | — | the bridge: CLAUDE.md / AGENTS.md / copilot-instructions.md auto-read every session |
-| Model providers | run CodeLoop on Ollama/Claude/GPT/Copilot | — |
-| Anti-hallucination guards | validation, evidence, wrap-up — automatic | CodeLoop outputs always cite evidence files |
+| Task modes + allowlists | automatic | benefit from disciplined outputs |
+| `.codeloop/` instructions | injected per mode | readable by any agent |
+| Project scanner | read before every plan | summarized into CLAUDE.md |
+| Architecture analyzer | inventory injected | shareable 18-section document |
+| LogLens | model sees only the ~1KB report | hand the report to any agent |
+| Safe editing + approvals | previewed and risk-assessed | `action-history.md` audit trail |
+| Memory (7 files) | read before planning | shared brain across tools |
+| Agent context files | — | CLAUDE.md / AGENTS.md / copilot-instructions.md auto-read |
+| Model providers | Ollama/Claude/GPT/Copilot | — |
+| Anti-hallucination guards | automatic | outputs always cite evidence |
 
-Recommended workflow: (1) once per project — copy `.codeloop/`, run **Scan Salesforce Project**, run **Generate Agent Context Files**; (2) Salesforce-specialist tasks → CodeLoop commands; (3) general coding → Claude Code/Codex/Copilot, now pre-oriented via the context files; (4) after big changes — re-scan and regenerate. Planned next: an MCP server exposing LogLens, search, scanner, and the architecture inventory as live tools for external agents.
+Workflow: (1) once per project — copy `.codeloop/`, Scan, Generate Agent Context Files; (2) Salesforce tasks → CodeLoop; (3) general coding → Claude Code/Codex/Copilot, pre-oriented; (4) after big changes — re-scan and regenerate. Planned next: an MCP server exposing LogLens, search, scanner, and the architecture inventory as live tools.
 
-## Salesforce-aware search
+</details>
 
-`search_code` understands identifiers: searching `AccountService` returns the exact class file, `AccountServiceTest`/`AccountService_Test`, Visualforce pages with `controller="AccountService"`, a matching LWC folder, and matching Flows — before literal references ranked by metadata type. Noise (`.sf`, `.git`, `node_modules`, `out`, `dist`, `.agent-memory`, `maxRevision.json`) is excluded.
+## For developers
 
-## Project scanner
-
-**Scan Salesforce Project** counts all metadata types and produces: object summaries (fields/record types/validation rules), trigger summaries (object + events), flow summaries (object/type/status), an Apex risk scan (SOQL/DML in loops, hardcoded emails/URLs/Ids — top 50 warnings), and test-coverage mapping (classes missing `<Name>Test`). The summary feeds the agent's planning.
-
-## Memory (`.agent-memory/`)
-
-| File | Purpose |
-|---|---|
-| `project-rules.md` | Your rules — read before every plan. Edit to steer the agent. |
-| `project-summary.md` | Scanner output — read before every plan |
-| `learned-patterns.md` | Reusable lessons — read before every plan |
-| `salesforce-decisions.md` | Architecture decisions — read before every plan for consistency |
-| `reflections.md` | Structured post-task reflection: goal, mode, files read, actions, result, what worked/failed, learning |
-| `failed-attempts.md` | Failures incl. invalid JSON and blocked actions |
-| `action-history.md` | Audit trail of approved/rejected/blocked actions |
-
-All entries are size-capped and secret-redacted (tokens, passwords, API keys never reach memory files).
-
-## Model providers
-
-Ollama (local) is the default. Switch with `codeloopAi.provider`:
-
-| Provider | Setting requirements |
-|---|---|
-| `ollama` (default) | Ollama running locally; `codeloopAi.model` = e.g. `qwen3-coder:latest` |
-| `anthropic` | `codeloopAi.anthropicApiKey`; `codeloopAi.model` = e.g. `claude-sonnet-4-5` |
-| `openai` | `codeloopAi.openAiApiKey`; `codeloopAi.model` = e.g. `gpt-4o` |
-| `vscode-lm` | VS Code 1.90+ with GitHub Copilot installed and signed in; `codeloopAi.model` = model family, e.g. `gpt-4o` |
-
-All providers normalize responses to the same format, so the agent loop, safety guards, and memory behave identically regardless of backend. If a provider is not configured, the agent stops with a clear message telling you which setting to fix.
-
-### Connecting to Claude (Anthropic)
-
-1. Create an API key at [console.anthropic.com](https://console.anthropic.com) (API Keys → Create Key; billing required — pay-per-use, separate from a Claude.ai subscription).
-2. In VS Code settings (`Ctrl+,` → search "codeloop") or settings.json:
-
-```json
-"codeloopAi.provider": "anthropic",
-"codeloopAi.anthropicApiKey": "sk-ant-your-key-here",
-"codeloopAi.model": "claude-sonnet-4-5"
-```
-
-3. Run any CodeLoop command — everything works the same, only the model changes. A wrong key shows "Anthropic API key rejected (401)"; a missing key names the exact setting to fix.
-
-Trade-offs: Claude follows the JSON action format and section templates far better than small local models (fewer retries, better answers), but your code leaves the machine and each run costs tokens. Switch back anytime with `"codeloopAi.provider": "ollama"`. Treat the API key like a password — it lives in your user settings; never commit it.
-
-### Connecting to OpenAI (Codex)
-
-1. Create an API key at [platform.openai.com](https://platform.openai.com) (API Keys → Create new secret key; billing required — the API is separate from a ChatGPT Plus subscription).
-2. In VS Code settings or settings.json:
-
-```json
-"codeloopAi.provider": "openai",
-"codeloopAi.openAiApiKey": "sk-your-key-here",
-"codeloopAi.model": "gpt-4o"
-```
-
-3. Run any CodeLoop command. A wrong key shows "OpenAI API key rejected (401)"; an unknown model shows a 404 naming the setting to check.
-
-Note: the provider uses the Chat Completions API, so use chat models (`gpt-4o`, `gpt-4o-mini`). OpenAI's dedicated Codex agent models run on a different API and are not wired in.
-
-### Connecting to Copilot (VS Code LM)
-
-No API key needed — set `"codeloopAi.provider": "vscode-lm"` and `"codeloopAi.model"` to a model family in lowercase-hyphen form (e.g. `gpt-4o`, `gpt-5-mini`, `claude-sonnet-4-5` — whatever your Copilot plan offers). Requires VS Code 1.90+ with GitHub Copilot installed and signed in; the first call shows a one-time consent prompt. If the family name doesn't match, CodeLoop falls back to Copilot's first available model instead of failing.
-
-## Settings
-
-| Setting | Default |
-|---|---|
-| `codeloopAi.provider` | `ollama` |
-| `codeloopAi.model` | `qwen3-coder:latest` |
-| `codeloopAi.ollamaEndpoint` | `http://localhost:11434/api/chat` |
-| `codeloopAi.ollamaNumCtx` | `32768` (Ollama context window; lower it if RAM-constrained) |
-| `codeloopAi.anthropicApiKey` / `openAiApiKey` / `apiKey` | (empty) |
-| `codeloopAi.loop.defaultMaxIterations` | `8` |
-| `codeloopAi.loop.absoluteMaxIterations` | `20` (hard ceiling) |
-| `codeloopAi.loop.modeMaxIterations` | per-mode table above |
-| `codeloopAi.loop.jsonRetries` / `answerValidationRetries` | `2` |
-| `codeloopAi.loop.noProgressLimit` | `2` |
-| `codeloopAi.loop.autoStopExplainAfterFiles` | `true` |
-
-## Typical workflow
-
-1. Open your Salesforce DX project in VS Code (Ollama running).
-2. Copy `.codeloop/` into the project and run **Scan Salesforce Project** once.
-3. Optionally add rules to `.agent-memory/project-rules.md`.
-4. Use the specific commands, or **Start Agent** for anything else.
-5. Approve or reject any file edits / commands the agent requests.
-6. The agent improves as reflections, patterns, and decisions accumulate in `.agent-memory/`.
-
-## Debugging the extension
-
-- **Output channel** (View → Output → CodeLoop AI): mode, iterations, thoughts, actions, observations, blocked/rejected events, errors.
-- **`.agent-memory/failed-attempts.md`** and **`action-history.md`** in the analyzed project explain odd agent behavior.
-- **Breakpoints**: open this repo, F5 launches an Extension Development Host with the debugger attached to the TypeScript sources.
-- **`npm test`**: 23 fast unit tests for detector/validation/parsing/risk/redaction logic.
-- **Isolate Ollama**: `curl http://localhost:11434/api/chat -d '{"model":"qwen3-coder:latest","messages":[{"role":"user","content":"hi"}],"stream":false}'`.
-- **Repeated "Invalid JSON from model"** on Ollama usually means context truncation — keep `codeloopAi.ollamaNumCtx` large (the run still recovers via the plain-text wrap-up, but the answer quality is better without truncation).
-
-## Testing
-
-```bash
-npm test
-```
-
-Compiles and runs 23 dependency-free unit tests (`src/test/runTests.ts`). The `vscode` API is stubbed, so tests run in plain Node.
-
-## Packaging
-
-```bash
-npm run compile
-vsce package
-```
-
-`.vscodeignore` keeps the package lean: sources, source maps, `node_modules`, tests, and local memory are excluded; compiled `out/`, `package.json`, `README.md`, and the `.codeloop/` templates are included.
-
-## Architecture
+<details>
+<summary><b>Architecture</b></summary>
 
 ```
 src/
   extension.ts                  Entry point: commands, settings → AgentConfig/LoopConfig
-  agent/                        THE AGENT
-    agentLoop.ts                Core loop: Think→Act→Observe→Reflect; mode/duplicate/
-                                no-progress guards, explain auto-stop, final answer
-                                validation, forced wrap-up, evidence filtering
-    taskModeDetector.ts         Goal → 11 task modes + agent/prompt/skills + allowlist
-    instructionLoader.ts        Loads .codeloop/ instructions (safe, traversal-blocked)
-    architectureAnalyzer.ts     Pre-scan component inventory for ARCHITECTURE_OVERVIEW
-    prompts.ts                  System/mode/observation/rejection/reflection prompts
+  agent/
+    agentLoop.ts                Core loop: guards, validation, wrap-up, evidence
+    taskModeDetector.ts         Goal → 11 task modes + allowlist
+    instructionLoader.ts        Loads .codeloop/ (safe, traversal-blocked)
+    architectureAnalyzer.ts     Pre-scan inventory for ARCHITECTURE_OVERVIEW
+    agentContextGenerator.ts    CLAUDE.md / AGENTS.md / copilot-instructions.md
+    prompts.ts                  System/mode/observation/reflection prompts
     responseTemplates.ts        Fixed final-answer formats per mode
-    tools.ts                    Tool implementations: read (sensitive-path block),
-                                search (SF-aware), create/replace/range/patch edits
-                                with approval previews, run_command risk levels
-    salesforceScanner.ts        DX scanner: counts, patterns, summaries, risk scan,
-                                test mapping
-    memory.ts                   .agent-memory files, structured reflections, redaction
-  loglens/                      APEX LOGLENS
-    logTypes.ts                 Parsed log / analysis types
-    debugLogParser.ts           Raw log → structured events/SOQL/DML/exceptions/limits
-    logAnalyzer.ts              Call tree, timeline, risk findings, recommendations
-    logReportBuilder.ts         Concise reports for the LLM (raw log never sent)
-  llm/                          MODEL PROVIDERS (swap via codeloopAi.provider)
-    ModelProvider.ts            Interface: name, chat(), healthCheck()
-    ProviderFactory.ts          Setting → concrete provider
-    OllamaProvider.ts           Local Ollama (default, structured output)
-    AnthropicProvider.ts        Claude Messages API
-    OpenAIProvider.ts           OpenAI Chat Completions
-    VsCodeLanguageModelProvider.ts  vscode.lm / Copilot models
-  tools/                        TOOL ABSTRACTION (MCP-ready)
-    ToolProvider.ts             ToolCall / ToolResult / ToolProvider interfaces
-    ToolRegistry.ts             Registration, discovery, allowlist enforcement
-    NativeToolProvider.ts       Routes the 8 built-in tools
-    LogLensToolProvider.ts      Routes the 5 debug-log tools
-    McpToolProvider.ts          MCP stub — external tools plug in here later
-  types/agentTypes.ts           Shared types, action JSON schema, LoopConfig
+    tools.ts                    read/search/edit/run + risk assessment
+    salesforceScanner.ts        DX scanner: counts, summaries, risks, test map
+    memory.ts                   .agent-memory files, redaction
+  loglens/                      Debug log parser / analyzer / report builders
+  llm/                          ModelProvider + Ollama/Anthropic/OpenAI/VsCodeLM
+  tools/                        ToolRegistry + Native/LogLens/Mcp providers
+  types/agentTypes.ts           Shared types, action schema, LoopConfig
   test/runTests.ts              Unit tests (npm test)
-.codeloop/                      Salesforce instructions: 1 global + 9 agents +
-                                7 prompts + 8 skills (editable, no code changes)
-.agent-memory/                  Runtime memory in each analyzed project (see Memory)
 ```
 
-Runtime flow for one command:
+Runtime flow: goal → mode → .codeloop context (+ architecture inventory) → loop (one JSON action per iteration through ToolRegistry with approvals) → validated final answer → memory. Extension seams: new provider = one file + factory case; new tools register in ToolRegistry; new behavior = markdown edit in `.codeloop/`.
 
-```
-Command → goal → task mode (allowlist + iteration limit)
-        → .codeloop context (+ architecture inventory when relevant) → system prompt
-        → LOOP: model returns one JSON action
-                → guards (mode / duplicate / no-progress / explain auto-stop)
-                → ToolRegistry → native / LogLens tools (approvals + safety blocks)
-                → observation (+ session recap + goal anchor) back to model
-        → final_answer validated against actual actions → evidence listed
-        → memory updated: reflection, decisions, failures, action history
-```
+</details>
 
-Extension seams: a new model provider is one file in `src/llm/` plus a factory case; new tools register in `ToolRegistry`; new agent behavior is a markdown edit in `.codeloop/`.
+<details>
+<summary><b>Testing, packaging, debugging</b></summary>
+
+**Test:** `npm test` — compiles, then 23 dependency-free unit tests with a stubbed vscode API.
+
+**Package:** `npm run compile && vsce package` — `.vscodeignore` ships only `out/`, `package.json`, README, and `.codeloop/` templates.
+
+**Debug:** Output channel (View → Output → CodeLoop AI) shows mode, iterations, observations, blocked/rejected events. `.agent-memory/failed-attempts.md` and `action-history.md` explain odd behavior. F5 opens an Extension Development Host with breakpoints in the TypeScript. Repeated "Invalid JSON" on Ollama = context truncation → keep `codeloopAi.ollamaNumCtx` large. Isolate Ollama: `curl http://localhost:11434/api/chat -d '{"model":"qwen3-coder:latest","messages":[{"role":"user","content":"hi"}],"stream":false}'`.
+
+</details>
 
 ## License
 

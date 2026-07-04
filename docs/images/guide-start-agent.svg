@@ -1,0 +1,48 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe Print','Comic Sans MS',cursive">
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- entry gate -->
+    <path d="M170 640 l0 -180 M290 640 l0 -180"/>
+    <path d="M150 460 q80 -30 160 0"/>
+    <path d="M186 500 q44 -4 88 0 l0 44 q-44 4 -88 0 z"/>
+    <!-- goal paper Xiaohei carries in -->
+    <ellipse cx="230" cy="600" rx="26" ry="32" fill="#111"/>
+    <path d="M250 584 q16 -10 22 -10"/>
+    <path d="M268 556 l44 -6 l4 22 l-44 6 z"/>
+    <path d="M222 630 q-4 14 -8 22 M242 630 q4 14 6 22"/>
+    <!-- the loop track (big circle, dashed) -->
+    <circle cx="760" cy="520" r="190" stroke-dasharray="10 12"/>
+    <!-- station signposts -->
+    <path d="M760 300 l0 -46 M760 254 l64 10 l-64 16"/>
+    <path d="M580 610 l-40 26 M540 636 l-8 -30"/>
+    <path d="M948 600 l40 24"/>
+    <!-- Xiaohei running on track, tilted, motion lines -->
+    <ellipse cx="920" cy="410" rx="28" ry="34" fill="#111" transform="rotate(24 920 410)"/>
+    <path d="M938 384 q16 -12 24 -12"/>
+    <path d="M902 438 q-14 12 -24 14 M928 444 q0 16 -6 26"/>
+    <path d="M868 380 q-16 -4 -26 -2 M872 400 q-14 -2 -24 2"/>
+    <!-- watching guard Xiaohei with flag, outside track -->
+    <ellipse cx="700" cy="516" rx="22" ry="27" fill="#111"/>
+    <path d="M716 500 l0 -46 l38 10 l-38 12"/>
+    <path d="M692 540 q-3 12 -6 18 M710 540 q3 12 4 18"/>
+    <!-- exit ramp to answer card -->
+    <path d="M948 490 q120 -30 200 -36 M1120 446 l30 6 l-24 16"/>
+    <path d="M1190 350 q140 -8 220 0 q10 2 8 240 q-110 8 -228 2 q-8 -120 0 -242"/>
+    <path d="M1220 410 q80 -3 160 0 M1220 460 q70 -3 140 0 M1220 510 q80 -3 150 0"/>
+    <path d="M1220 552 l14 14 l20 -24"/>
+    <path d="M100 730 q700 10 1400 0"/>
+  </g>
+  <g fill="#fff" stroke="none">
+    <circle cx="223" cy="592" r="4"/><circle cx="239" cy="592" r="4"/>
+    <circle cx="921" cy="400" r="4.5"/><circle cx="936" cy="406" r="4.5"/>
+    <circle cx="694" cy="510" r="3.5"/><circle cx="707" cy="510" r="3.5"/>
+  </g>
+  <g font-size="30">
+    <text x="120" y="380" fill="#e8710a">your goal picks the mode at the gate</text>
+    <text x="700" y="220" fill="#111" font-size="27">think</text>
+    <text x="460" y="680" fill="#111" font-size="27">observe</text>
+    <text x="990" y="670" fill="#111" font-size="27">act</text>
+    <text x="620" y="760" fill="#d93025" font-size="27">guards watch every lap</text>
+    <text x="1180" y="310" fill="#1a73e8">answer + evidence files</text>
+  </g>
+</svg>
