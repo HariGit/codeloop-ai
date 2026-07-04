@@ -4,7 +4,7 @@
 
 A Salesforce-aware recursive coding agent for VS Code. Runs fully local by default with your own Ollama model — no cloud, no API keys, no data leaving your machine. Optionally switch to Claude (Anthropic), OpenAI, or VS Code's Language Model API (Copilot). The agent "learns" through markdown memory files — not model training.
 
-![CodeLoop AI compresses project context: without it an agent reads ~50,000 tokens of raw files; CodeLoop scans, compresses, and shares one pre-digested map of about 2,000 tokens](docs/images/codeloop-token-diet.svg)
+![CodeLoop AI compresses project context: without it an agent reads ~50,000 tokens of raw files; CodeLoop scans, compresses, and shares one pre-digested map of about 2,000 tokens](docs/images/codeloop-token-diet.png)
 
 ```
 Goal → Think → Act → Observe → Reflect → Improve Plan → Repeat (per-mode iteration limit)
@@ -46,7 +46,7 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 <details>
 <summary><b>1. Start Agent — the free-form loop</b></summary>
 
-![Start Agent feature](docs/images/guide-start-agent.svg)
+![Start Agent feature](docs/images/guide-start-agent.png)
 
 1. `Ctrl+Shift+P` → **CodeLoop AI: Start Agent** → type any goal, e.g. *"find where case comments trigger emails and check for hardcoded addresses"*.
 2. **The gate:** your phrasing picks the task mode — "explain/review" stays read-only, "fix/create" unlocks editing, "debug log" unlocks LogLens. The chosen mode is the first line in the output channel.
@@ -59,7 +59,7 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 <details>
 <summary><b>2. Scan Salesforce Project — know your org first</b></summary>
 
-![Scan feature](docs/images/guide-scan.svg)
+![Scan feature](docs/images/guide-scan.png)
 
 1. Open your Salesforce DX project in VS Code.
 2. `Ctrl+Shift+P` → **CodeLoop AI: Scan Salesforce Project**.
@@ -71,7 +71,7 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 <details>
 <summary><b>3. Explain Apex Class — understand before touching</b></summary>
 
-![Explain feature](docs/images/guide-explain.svg)
+![Explain feature](docs/images/guide-explain.png)
 
 1. `Ctrl+Shift+P` → **CodeLoop AI: Explain Apex Class** → enter the class name.
 2. The agent finds the class, its page/LWC/trigger/test, reads them, and stops.
@@ -82,7 +82,7 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 <details>
 <summary><b>4. Review Apex Class — find the problems</b></summary>
 
-![Review feature](docs/images/guide-review.svg)
+![Review feature](docs/images/guide-review.png)
 
 1. `Ctrl+Shift+P` → **CodeLoop AI: Review Apex Class** → enter the class name.
 2. The agent checks the 9-point standards list: SOQL/DML in loops, bulkification, hardcoded values, sharing, tests.
@@ -93,7 +93,7 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 <details>
 <summary><b>5. Create Apex Test Class — with your approval</b></summary>
 
-![Test feature](docs/images/guide-test.svg)
+![Test feature](docs/images/guide-test.png)
 
 1. `Ctrl+Shift+P` → **CodeLoop AI: Create Apex Test Class** → enter the class name.
 2. The agent reads the class and existing test patterns first.
@@ -105,7 +105,7 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 <details>
 <summary><b>6. Architecture Overview — the big picture</b></summary>
 
-![Architecture feature](docs/images/guide-architecture.svg)
+![Architecture feature](docs/images/guide-architecture.png)
 
 1. `Ctrl+Shift+P` → **CodeLoop AI: Architecture Overview** → enter an object, class, feature, or flow name.
 2. A pre-scan (plain TypeScript, zero tokens) finds every related component and hands the model the inventory.
@@ -116,7 +116,7 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 <details>
 <summary><b>7. Analyze Apex Debug Log — LogLens</b></summary>
 
-![LogLens feature](docs/images/guide-loglens.svg)
+![LogLens feature](docs/images/guide-loglens.png)
 
 1. Download a log into the workspace (e.g. `sf apex log get`).
 2. `Ctrl+Shift+P` → **CodeLoop AI: Analyze Apex Debug Log** → enter the log path.

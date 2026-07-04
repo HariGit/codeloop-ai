@@ -11,3 +11,4 @@ out/test/**
 *.zip
 *.vsix
 tsconfig.json
+docs/**
