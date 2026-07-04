@@ -135,9 +135,32 @@ Tools: `analyze_debug_log`, `analyze_latest_apex_logs`, `explain_log_flow`, `fin
 
 ## Agent context files (token saver for Claude Code / Codex / Copilot)
 
+![CodeLoop AI compresses project context: without it an agent reads ~50,000 tokens of raw files; CodeLoop scans, compresses, and shares one pre-digested map of about 2,000 tokens](docs/images/codeloop-token-diet.svg)
+
+_Illustration in the style of [Ian Xiaohei Illustrations](https://github.com/helloianneo/ian-xiaohei-illustrations) (MIT)._
+
 **Generate Agent Context Files** compiles CodeLoop's deterministic knowledge — project shape, architecture patterns, key objects/triggers/flows, top risk warnings, test gaps, your project rules, recent architecture decisions, and coding standards — into the instruction files other agents read on every session: `CLAUDE.md` (Claude Code), `AGENTS.md` (Codex/generic), and `.github/copilot-instructions.md` (Copilot). Those agents start each session already oriented instead of burning thousands of tokens rediscovering the project.
 
 Content is written inside a `<!-- CODELOOP:BEGIN --> … <!-- CODELOOP:END -->` managed block — anything you write outside the block is preserved on regeneration. Re-run the command after big metadata changes.
+
+## How agents use CodeLoop
+
+Two kinds of agents consume what CodeLoop builds — its own agent (whatever model you configure) and external agents (Claude Code, Codex, Copilot):
+
+| Feature | CodeLoop's own agent | External agents |
+|---|---|---|
+| Task modes + allowlists | automatic — goal routes to 1 of 11 modes | benefit indirectly from disciplined outputs |
+| `.codeloop/` instructions | injected into the system prompt per mode | readable by any agent ("follow .codeloop/instructions") |
+| Project scanner | reads `project-summary.md` before every plan | summarized into CLAUDE.md; full detail in `.agent-memory/` |
+| Architecture analyzer | inventory injected into ARCHITECTURE_OVERVIEW runs | the 18-section overview is a shareable document |
+| LogLens | parses logs deterministically; model sees only the ~1KB report | run the command, hand the report to any agent |
+| Safe editing + approvals | every write/command previewed and risk-assessed | `action-history.md` is an audit trail any agent can check |
+| Memory (7 files) | rules/patterns/decisions read before planning | shared brain — e.g. Claude Code reads `salesforce-decisions.md` |
+| Agent context files | — | the bridge: CLAUDE.md / AGENTS.md / copilot-instructions.md auto-read every session |
+| Model providers | run CodeLoop on Ollama/Claude/GPT/Copilot | — |
+| Anti-hallucination guards | validation, evidence, wrap-up — automatic | CodeLoop outputs always cite evidence files |
+
+Recommended workflow: (1) once per project — copy `.codeloop/`, run **Scan Salesforce Project**, run **Generate Agent Context Files**; (2) Salesforce-specialist tasks → CodeLoop commands; (3) general coding → Claude Code/Codex/Copilot, now pre-oriented via the context files; (4) after big changes — re-scan and regenerate. Planned next: an MCP server exposing LogLens, search, scanner, and the architecture inventory as live tools for external agents.
 
 ## Salesforce-aware search
 
