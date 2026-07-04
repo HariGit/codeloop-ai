@@ -1,0 +1,28 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe Print','Comic Sans MS',cursive">
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- big wall board -->
+    <path d="M360 220 q400 -14 700 0 q14 2 10 420 q-360 16 -714 4 q-12 -212 4 -424"/>
+    <!-- layered boxes with arrows -->
+    <path d="M480 290 q70 -4 130 0 l0 56 q-65 4 -130 0 z"/>
+    <path d="M760 290 q70 -4 130 0 l0 56 q-65 4 -130 0 z"/>
+    <path d="M545 346 l0 50 M825 346 l0 50 M552 388 l-7 12 l-8 -11 M832 388 l-7 12 l-8 -11"/>
+    <path d="M480 400 q70 -4 130 0 l0 56 q-65 4 -130 0 z"/>
+    <path d="M760 400 q70 -4 130 0 l0 56 q-65 4 -130 0 z"/>
+    <path d="M612 428 l144 0 M742 421 l14 7 l-14 8"/>
+    <path d="M545 456 l0 50 M825 456 l0 50 M552 498 l-7 12 l-8 -11 M832 498 l-7 12 l-8 -11"/>
+    <path d="M480 510 q200 -8 410 0 l0 60 q-205 6 -410 0 z"/>
+    <path d="M560 540 q120 -5 250 0"/>
+    <!-- ladder + Xiaohei drawing -->
+    <path d="M1130 660 l60 -380 M1210 660 l40 -380 M1146 580 l72 6 M1158 500 l68 6 M1170 420 l62 6 M1182 340 l58 6"/>
+    <ellipse cx="1148" cy="380" rx="28" ry="34" fill="#111"/>
+    <path d="M1124 368 q-24 -12 -44 -14"/>
+    <path d="M1140 412 q-4 14 -8 20 M1162 412 q2 14 4 22"/>
+    <path d="M100 740 q700 10 1400 0"/>
+  </g>
+  <g fill="#fff" stroke="none"><circle cx="1141" cy="372" r="4.5"/><circle cx="1158" cy="372" r="4.5"/></g>
+  <g font-size="30">
+    <text x="360" y="160" fill="#e8710a">pre-scan finds every piece before the model starts</text>
+    <text x="1000" y="800" fill="#1a73e8">18 sections + Mermaid diagrams</text>
+  </g>
+</svg>

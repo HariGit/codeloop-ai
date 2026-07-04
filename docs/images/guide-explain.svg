@@ -1,0 +1,29 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe Print','Comic Sans MS',cursive">
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- big class file -->
+    <path d="M240 320 q150 -8 260 0 q10 2 8 360 q-130 10 -268 2 q-8 -180 0 -362"/>
+    <path d="M240 320 l60 -26 l210 -8 l-10 34"/>
+    <path d="M280 380 q90 -4 180 0 M280 430 q70 -3 140 0 M280 480 q90 -4 170 0 M280 530 q60 -3 120 0 M280 580 q86 -4 160 0 M280 630 q50 -2 100 0"/>
+    <!-- Xiaohei on stool with magnifier -->
+    <path d="M640 660 l70 0 M652 660 l-6 34 M698 660 l6 34"/>
+    <ellipse cx="676" cy="604" rx="30" ry="36" fill="#111"/>
+    <path d="M652 590 q-26 -16 -44 -34"/>
+    <circle cx="586" cy="536" r="30"/>
+    <path d="M608 558 l20 20"/>
+    <path d="M700 618 q14 8 18 16"/>
+    <!-- speech bubble with tidy sections -->
+    <path d="M900 340 q200 -10 340 0 q12 2 10 260 q-160 12 -348 4 q-10 -130 -2 -264"/>
+    <path d="M940 610 l-30 60 l80 -50"/>
+    <path d="M940 400 l22 0 M980 398 q120 -4 220 0"/>
+    <path d="M940 460 l22 0 M980 458 q100 -4 200 0"/>
+    <path d="M940 520 l22 0 M980 518 q110 -4 210 0"/>
+    <path d="M940 560 l22 0 M980 558 q80 -3 150 0"/>
+    <path d="M100 740 q700 10 1400 0"/>
+  </g>
+  <g fill="#fff" stroke="none"><circle cx="668" cy="596" r="4.5"/><circle cx="686" cy="596" r="4.5"/></g>
+  <g font-size="30">
+    <text x="200" y="250" fill="#d93025">read-only — never edits your code</text>
+    <text x="960" y="290" fill="#1a73e8">12-section explanation with evidence</text>
+  </g>
+</svg>

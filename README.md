@@ -51,6 +51,69 @@ code --install-extension codeloop-ai-0.1.0.vsix
 
 Output appears in **View → Output → CodeLoop AI**.
 
+## Feature guide
+
+### 1. Scan Salesforce Project — know your org first
+
+![Scan feature](docs/images/guide-scan.svg)
+
+1. Open your Salesforce DX project in VS Code.
+2. `Ctrl+Shift+P` → **CodeLoop AI: Scan Salesforce Project**.
+3. Read the result in the output channel or `.agent-memory/project-summary.md`.
+4. Re-run after big metadata changes — every agent run plans with this summary.
+
+### 2. Explain Apex Class — understand before touching
+
+![Explain feature](docs/images/guide-explain.svg)
+
+1. `Ctrl+Shift+P` → **CodeLoop AI: Explain Apex Class** → enter the class name.
+2. The agent finds the class, its page/LWC/trigger/test, reads them, and stops.
+3. You get a 12-section explanation (Purpose → Evidence Files). It never edits anything.
+
+### 3. Review Apex Class — find the problems
+
+![Review feature](docs/images/guide-review.svg)
+
+1. `Ctrl+Shift+P` → **CodeLoop AI: Review Apex Class** → enter the class name.
+2. The agent checks the 9-point standards list: SOQL/DML in loops, bulkification, hardcoded values, sharing, tests.
+3. Findings come back ranked Critical → Low with file:line references and fixes. Read-only.
+
+### 4. Create Apex Test Class — with your approval
+
+![Test feature](docs/images/guide-test.svg)
+
+1. `Ctrl+Shift+P` → **CodeLoop AI: Create Apex Test Class** → enter the class name.
+2. The agent reads the class and existing test patterns first.
+3. An approval dialog shows the new file with a preview — nothing is written until you click Approve.
+4. Scenarios covered: positive, negative, null, and 200+ record bulk, with real assertions.
+
+### 5. Architecture Overview — the big picture
+
+![Architecture feature](docs/images/guide-architecture.svg)
+
+1. `Ctrl+Shift+P` → **CodeLoop AI: Architecture Overview** → enter an object, class, feature, or flow name.
+2. A pre-scan (plain TypeScript, zero tokens) finds every related component and hands the model the inventory.
+3. The agent reads only the key files and produces an 18-section document ending with Mermaid flow + sequence diagrams.
+
+### 6. Analyze Apex Debug Log — LogLens
+
+![LogLens feature](docs/images/guide-loglens.svg)
+
+1. Download a log into the workspace (e.g. `sf apex log get`).
+2. `Ctrl+Shift+P` → **CodeLoop AI: Analyze Apex Debug Log** → enter the log path.
+3. The extension parses the log itself — the model only sees a ~1KB structured report (timeline, call tree, SOQL/DML, exceptions, limits).
+4. The answer ends with Root Cause → Recommended Fix → Evidence Files.
+
+### 7. Generate Agent Context Files — feed the other agents
+
+Illustrated in the [Agent context files](#agent-context-files-token-saver-for-claude-code--codex--copilot) section below.
+
+1. `Ctrl+Shift+P` → **CodeLoop AI: Generate Agent Context Files**.
+2. Pick targets: CLAUDE.md, AGENTS.md, `.github/copilot-instructions.md` (all pre-selected).
+3. Claude Code / Codex / Copilot now start every session pre-oriented — your notes outside the managed block are preserved.
+
+_All illustrations in the style of [Ian Xiaohei Illustrations](https://github.com/helloianneo/ian-xiaohei-illustrations) (MIT)._
+
 ## Task modes
 
 The goal is classified before the loop starts. Each mode selects an agent role, prompt template, skills, an action allowlist, and an iteration limit:

@@ -1,0 +1,25 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe Print','Comic Sans MS',cursive">
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- class box on stilts -->
+    <path d="M560 260 q180 -8 320 0 q10 2 8 130 q-170 8 -330 2 q-8 -66 2 -132"/>
+    <path d="M600 310 q120 -5 240 0 M600 350 q100 -4 200 0"/>
+    <path d="M600 394 l-16 130 M1080 260 l0 0 M840 392 l16 130"/>
+    <!-- safety net -->
+    <path d="M480 620 q240 70 480 0"/>
+    <path d="M480 620 l0 -40 M960 620 l0 -40"/>
+    <path d="M540 636 q0 -20 4 -34 M620 654 q0 -24 4 -40 M720 660 q0 -26 0 -42 M820 652 q0 -24 -2 -40 M900 634 q0 -20 -4 -34"/>
+    <path d="M500 600 q220 56 440 0" stroke-width="2.5"/>
+    <!-- Xiaohei tying the net -->
+    <ellipse cx="450" cy="640" rx="28" ry="34" fill="#111"/>
+    <path d="M470 622 q10 -8 14 -12"/>
+    <path d="M438 672 q-4 16 -8 24 M462 672 q4 16 6 24"/>
+    <path d="M100 740 q700 10 1400 0"/>
+  </g>
+  <g fill="#fff" stroke="none"><circle cx="443" cy="632" r="4.5"/><circle cx="460" cy="632" r="4.5"/></g>
+  <g font-size="30">
+    <text x="1020" y="480" fill="#1a73e8">bulk • negative • null scenarios</text>
+    <text x="1020" y="518" fill="#1a73e8">assertions that mean something</text>
+    <text x="240" y="220" fill="#e8710a">asks your approval before writing the file</text>
+  </g>
+</svg>

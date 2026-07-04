@@ -1,0 +1,23 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe Print','Comic Sans MS',cursive">
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- class sheet lying like terrain with warning flags -->
+    <path d="M220 480 q260 -30 520 -10 q14 2 10 220 q-270 16 -534 4 q-10 -110 4 -214"/>
+    <path d="M270 540 q180 -10 400 -4 M270 600 q160 -8 360 -2 M270 655 q120 -6 260 -2"/>
+    <!-- flags -->
+    <path d="M330 480 l0 -70 l52 14 l-52 16 M520 468 l0 -80 l52 14 l-52 16 M660 472 l0 -60 l44 12 l-44 14"/>
+    <!-- Xiaohei with clipboard -->
+    <ellipse cx="1010" cy="560" rx="30" ry="36" fill="#111"/>
+    <path d="M1032 542 q22 -10 34 -10"/>
+    <path d="M1066 500 l96 -8 q8 0 8 96 l-98 10 q-8 -50 -6 -98"/>
+    <path d="M1082 530 l10 10 l16 -18 M1082 566 l10 10 l16 -18 M1082 600 l26 -2 l-16 16"/>
+    <path d="M998 594 q-4 18 -8 26 M1024 594 q4 18 6 26"/>
+    <path d="M100 740 q700 10 1400 0"/>
+  </g>
+  <g fill="#fff" stroke="none"><circle cx="1002" cy="552" r="4.5"/><circle cx="1020" cy="552" r="4.5"/></g>
+  <g font-size="30">
+    <text x="200" y="300" fill="#d93025">flags: SOQL in loop • hardcoded ids • security</text>
+    <path d="M400 315 q-30 50 -60 82" stroke="#d93025" stroke-width="2.5" fill="none"/>
+    <text x="1030" y="380" fill="#1a73e8">findings ranked by severity</text>
+  </g>
+</svg>

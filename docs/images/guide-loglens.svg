@@ -1,0 +1,31 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe Print','Comic Sans MS',cursive">
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- long log tape snaking in -->
+    <path d="M120 420 q120 -40 220 0 q100 40 200 6 q60 -20 120 4"/>
+    <path d="M120 470 q120 -40 220 0 q100 40 200 6 q60 -20 120 4"/>
+    <path d="M150 436 l0 22 M230 414 l0 22 M330 436 l0 24 M440 442 l0 22 M560 442 l0 22"/>
+    <!-- projector box -->
+    <path d="M700 380 q120 -6 180 0 q10 2 8 180 q-95 8 -190 2 q-8 -92 2 -182"/>
+    <circle cx="790" cy="470" r="34"/>
+    <circle cx="790" cy="470" r="12"/>
+    <!-- beam -->
+    <path d="M880 440 l260 -80 M880 500 l260 90" stroke-dasharray="6 8"/>
+    <!-- result card in beam -->
+    <path d="M1150 340 q140 -8 220 0 q10 2 8 250 q-110 8 -228 2 q-8 -126 0 -252"/>
+    <circle cx="1260" cy="430" r="34"/><circle cx="1260" cy="430" r="18"/><circle cx="1260" cy="430" r="5" fill="#111"/>
+    <path d="M1190 510 q70 -4 140 0 M1190 550 q60 -3 110 0"/>
+    <!-- Xiaohei cranking -->
+    <path d="M900 470 q22 0 26 8 q4 8 -6 26"/>
+    <circle cx="922" cy="506" r="7"/>
+    <ellipse cx="950" cy="574" rx="28" ry="34" fill="#111"/>
+    <path d="M936 552 q-10 -18 -16 -32"/>
+    <path d="M940 606 q-4 16 -8 24 M962 606 q4 16 6 24"/>
+    <path d="M100 720 q700 10 1400 0"/>
+  </g>
+  <g fill="#fff" stroke="none"><circle cx="943" cy="566" r="4.5"/><circle cx="960" cy="566" r="4.5"/></g>
+  <g font-size="30">
+    <text x="120" y="330" fill="#d93025">raw log never reaches the model</text>
+    <text x="1120" y="290" fill="#1a73e8">root cause + recommended fix</text>
+  </g>
+</svg>

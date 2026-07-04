@@ -1,0 +1,30 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" font-family="'Segoe Print','Comic Sans MS',cursive">
+  <rect width="1600" height="900" fill="#ffffff"/>
+  <g stroke="#111" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- shelf of metadata boxes -->
+    <path d="M180 420 q120 -6 240 0 q6 90 0 240 q-120 6 -240 0 q-6 -140 0 -240"/>
+    <path d="M180 500 q120 -4 240 0 M180 580 q120 -4 240 0"/>
+    <path d="M205 445 q40 -3 70 0 l0 38 q-35 3 -70 0 z M300 448 q30 -2 60 0 l0 36 q-30 2 -60 0 z"/>
+    <path d="M210 522 q34 -2 64 0 l0 40 q-32 2 -64 0 z M295 525 q36 -2 68 0 l0 38 q-34 2 -68 0 z"/>
+    <path d="M212 602 q60 -3 120 0 l0 40 q-60 3 -120 0 z"/>
+    <!-- Xiaohei walking with lantern -->
+    <ellipse cx="620" cy="600" rx="30" ry="36" fill="#111"/>
+    <path d="M646 586 q26 -12 40 -12"/>
+    <circle cx="706" cy="572" r="16"/>
+    <path d="M726 560 l16 -10 M730 574 l18 -2 M726 586 l16 10"/>
+    <path d="M606 632 q-8 16 -14 22 M634 632 q6 16 10 24"/>
+    <!-- checklist sheet -->
+    <path d="M960 380 q140 -8 240 0 q10 2 8 300 q-120 10 -248 2 q-8 -150 0 -302"/>
+    <path d="M990 440 l14 14 l22 -26 M1050 436 q80 -3 120 0"/>
+    <path d="M990 510 l14 14 l22 -26 M1050 506 q80 -3 120 0"/>
+    <path d="M990 580 l14 14 l22 -26 M1050 576 q70 -3 110 0"/>
+    <path d="M990 646 l30 0 M1050 644 q60 -3 100 0"/>
+    <path d="M100 720 q700 10 1400 0"/>
+  </g>
+  <g fill="#fff" stroke="none"><circle cx="612" cy="592" r="4.5"/><circle cx="630" cy="592" r="4.5"/></g>
+  <g font-size="30">
+    <text x="150" y="330" fill="#e8710a">counts • patterns • risks • test gaps</text>
+    <text x="960" y="330" fill="#1a73e8">saved to project-summary.md</text>
+    <path d="M1080 342 q10 16 14 28" stroke="#1a73e8" stroke-width="2.5" fill="none"/>
+  </g>
+</svg>
