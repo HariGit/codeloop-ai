@@ -15,7 +15,12 @@ const SF_BASE = path.join('force-app', 'main', 'default');
 
 /** Noisy folders excluded from every search. */
 const SEARCH_EXCLUDE =
-  '{**/.sf/**,**/.sfdx/**,**/.git/**,**/node_modules/**,**/out/**,**/dist/**,**/.agent-memory/**}';
+  '{**/.sf/**,**/.sfdx/**,**/.git/**,**/node_modules/**,**/out/**,**/dist/**,**/.agent-memory/**,**/staticresources/**}';
+
+/** Files larger than this are skipped by search (minified bundles etc.). */
+const SEARCH_MAX_FILE_BYTES = 256 * 1024;
+/** How many files search reads concurrently. */
+const SEARCH_CONCURRENCY = 24;
 
 /** Salesforce metadata types first, plus common general extensions. */
 const SEARCH_INCLUDE = '**/*.{cls,trigger,page,component,xml,js,html,css,apex,cmp,ts,json,md}';
@@ -295,33 +300,51 @@ export async function searchCode(workspaceRoot: string, query: string): Promise<
     .sort((a, b) => extensionRank(a) - extensionRank(b) || a.localeCompare(b));
 
   const needle = q.toLowerCase();
-  for (const fsPath of sortedPaths) {
-    if (results.length >= MAX_SEARCH_RESULTS) {
-      break;
-    }
-    const text = await readSafe(fsPath);
-    if (!text) {
-      continue;
-    }
-    const lines = text.split('\n');
-    const rel = path.relative(workspaceRoot, fsPath).split(path.sep).join('/');
-    for (let i = 0; i < lines.length && results.length < MAX_SEARCH_RESULTS; i++) {
-      if (lines[i].toLowerCase().includes(needle)) {
-        const entry = `${rel}:${i + 1}: ${lines[i].trim().slice(0, 200)}`;
-        // Skip duplicates already reported by the Salesforce shortcuts.
-        if (!results.some(r => r.includes(`${rel}:${i + 1}:`))) {
-          results.push(entry);
+  const started = Date.now();
+  // Read in parallel batches; skip oversized files (minified bundles).
+  for (let b = 0; b < sortedPaths.length && results.length < MAX_SEARCH_RESULTS; b += SEARCH_CONCURRENCY) {
+    const batch = sortedPaths.slice(b, b + SEARCH_CONCURRENCY);
+    const texts = await Promise.all(
+      batch.map(async fsPath => {
+        try {
+          const stat = await fs.stat(fsPath);
+          if (stat.size > SEARCH_MAX_FILE_BYTES) {
+            return { fsPath, text: '' };
+          }
+        } catch {
+          return { fsPath, text: '' };
+        }
+        return { fsPath, text: await readSafe(fsPath) };
+      })
+    );
+    for (const { fsPath, text } of texts) {
+      if (!text || results.length >= MAX_SEARCH_RESULTS) {
+        continue;
+      }
+      if (!text.toLowerCase().includes(needle)) {
+        continue; // fast reject before line splitting
+      }
+      const lines = text.split('\n');
+      const rel = path.relative(workspaceRoot, fsPath).split(path.sep).join('/');
+      for (let i = 0; i < lines.length && results.length < MAX_SEARCH_RESULTS; i++) {
+        if (lines[i].toLowerCase().includes(needle)) {
+          const entry = `${rel}:${i + 1}: ${lines[i].trim().slice(0, 200)}`;
+          // Skip duplicates already reported by the Salesforce shortcuts.
+          if (!results.some(r => r.includes(`${rel}:${i + 1}:`))) {
+            results.push(entry);
+          }
         }
       }
     }
   }
+  const elapsedNote = ` [searched ${Math.min(sortedPaths.length, 3000)} files in ${((Date.now() - started) / 1000).toFixed(1)}s]`;
 
   if (results.length === 0) {
-    return { success: true, observation: `${interpretedNote}No matches found for "${q}".` };
+    return { success: true, observation: `${interpretedNote}No matches found for "${q}".${elapsedNote}` };
   }
   return {
     success: true,
-    observation: `${interpretedNote}Found ${results.length} result(s) for "${q}" (max ${MAX_SEARCH_RESULTS}):\n${results.join('\n')}`
+    observation: `${interpretedNote}Found ${results.length} result(s) for "${q}" (max ${MAX_SEARCH_RESULTS}):\n${results.join('\n')}${elapsedNote}`
   };
 }
 
