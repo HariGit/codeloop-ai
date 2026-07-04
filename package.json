@@ -4,6 +4,10 @@
   "description": "Local recursive coding agent for VS Code powered by Ollama (qwen3-coder)",
   "version": "0.1.0",
   "publisher": "vasu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HariGit/codeloop-ai.git"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
