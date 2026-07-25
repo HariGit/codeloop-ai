@@ -1,8 +1,8 @@
 {
   "name": "codeloop-ai",
   "displayName": "CodeLoop AI",
-  "description": "Local recursive coding agent for VS Code powered by Ollama (qwen3-coder)",
-  "version": "0.1.0",
+  "description": "Salesforce-aware recursive coding agent for VS Code \u2014 local-first (Ollama) with Claude/OpenAI/Copilot support, LogLens debug log analysis, architecture overviews, and agent context generation",
+  "version": "0.2.0",
   "publisher": "vasu",
   "repository": {
     "type": "git",
