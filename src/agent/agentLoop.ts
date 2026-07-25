@@ -403,6 +403,11 @@ export async function runAgentLoop(
     vscode.window.showWarningMessage('CodeLoop AI: Reached max iterations without finishing.');
   }
 
+  // Final model status (multi mode shows failovers that happened mid-run).
+  if (client.getInfo) {
+    output.appendLine(`Model status: ${client.getInfo()}`);
+  }
+
   // Structured reflection → reflections.md; decisions → salesforce-decisions.md.
   progress.report({ message: 'Saving reflection...' });
   const filesRead = history
@@ -427,7 +432,7 @@ export async function runAgentLoop(
           content: buildReflectionPrompt(goal, historyText + (finalAnswer ? `\nFinal answer: ${truncate(finalAnswer, 300)}` : ''))
         }
       ],
-      { temperature: 0.3 }
+      { temperature: 0.3, tier: 'light' }
     );
     whatWorked = extractLabeled(reflection, 'What worked') ?? whatWorked;
     whatFailed = extractLabeled(reflection, 'What failed') ?? whatFailed;

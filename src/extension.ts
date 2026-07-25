@@ -104,6 +104,15 @@ function getConfig(): AgentConfig {
     }
   };
   return {
+    modelMode: cfg.get<AgentConfig['modelMode']>('modelMode', 'mono'),
+    primary: {
+      provider: cfg.get<AgentConfig['provider']>('primary.provider', 'openai'),
+      model: cfg.get<string>('primary.model', 'gpt-4o-mini')
+    },
+    local: {
+      provider: cfg.get<AgentConfig['provider']>('local.provider', 'ollama'),
+      model: cfg.get<string>('local.model', cfg.get<string>('model', 'qwen3-coder:latest'))
+    },
     provider: cfg.get<AgentConfig['provider']>('provider', 'ollama'),
     endpoint: cfg.get<string>('ollamaEndpoint', 'http://localhost:11434/api/chat'),
     model: cfg.get<string>('model', 'qwen3-coder:latest'),

@@ -72,11 +72,13 @@ export interface AgentAction {
   input?: Record<string, unknown>;
 }
 
-/** Options for an Ollama chat call. */
+/** Options for a chat call. */
 export interface ChatOptions {
-  /** JSON schema for Ollama structured output (format field). */
+  /** JSON schema for structured output (providers that support it). */
   format?: object;
   temperature?: number;
+  /** In multi mode: 'light' routes to the local model (background calls). */
+  tier?: 'primary' | 'light';
 }
 
 /** Result of executing one action. */
@@ -108,8 +110,17 @@ export interface OllamaChatResponse {
   error?: string;
 }
 
-/** Supported model backends. Only "ollama" is implemented today. */
+/** Supported model backends. */
 export type ModelProviderName = 'ollama' | 'anthropic' | 'openai' | 'vscode-lm';
+
+/** mono = one model; multi = primary (strong) + local (cheap) with failover. */
+export type ModelMode = 'mono' | 'multi';
+
+/** One model slot in multi mode. */
+export interface ModelSlot {
+  provider: ModelProviderName;
+  model: string;
+}
 
 /** Configurable loop behavior. */
 export interface LoopConfig {
@@ -169,6 +180,12 @@ export interface AgentConfig {
   maxIterations: number;
   /** Loop behavior; DEFAULT_LOOP_CONFIG is used when absent. */
   loop?: LoopConfig;
+  /** mono (default) or multi (primary + local with failover). */
+  modelMode?: ModelMode;
+  /** Strong model that drives decisions and answers (multi mode). */
+  primary?: ModelSlot;
+  /** Cheap model for light background calls (multi mode). */
+  local?: ModelSlot;
 }
 
 /** JSON schema for AgentAction — passed to providers that support structured output. */

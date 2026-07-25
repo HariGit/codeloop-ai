@@ -62,6 +62,15 @@
     "configuration": {
       "title": "CodeLoop AI",
       "properties": {
+        "codeloopAi.modelMode": {
+          "type": "string",
+          "enum": [
+            "mono",
+            "multi"
+          ],
+          "default": "mono",
+          "description": "mono: one model (codeloopAi.provider/model). multi: primary (strong) + local (cheap) models with automatic failover."
+        },
         "codeloopAi.provider": {
           "type": "string",
           "enum": [
@@ -71,7 +80,39 @@
             "vscode-lm"
           ],
           "default": "ollama",
-          "description": "Model provider: ollama (local, default), anthropic (Claude), openai, or vscode-lm (VS Code Language Model API / Copilot)."
+          "description": "Model provider (mono mode): ollama (local, default), anthropic (Claude), openai, or vscode-lm (Copilot)."
+        },
+        "codeloopAi.primary.provider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "anthropic",
+            "openai",
+            "vscode-lm"
+          ],
+          "default": "openai",
+          "description": "Multi mode: provider of the strong PRIMARY model (drives decisions and answers)."
+        },
+        "codeloopAi.primary.model": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "description": "Multi mode: PRIMARY model name."
+        },
+        "codeloopAi.local.provider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "anthropic",
+            "openai",
+            "vscode-lm"
+          ],
+          "default": "ollama",
+          "description": "Multi mode: provider of the cheap LOCAL model (background calls, failover)."
+        },
+        "codeloopAi.local.model": {
+          "type": "string",
+          "default": "qwen3-coder:latest",
+          "description": "Multi mode: LOCAL model name."
         },
         "codeloopAi.anthropicApiKey": {
           "type": "string",
