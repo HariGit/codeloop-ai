@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { ChatMessage, ChatOptions, AgentConfig } from '../types/agentTypes';
 import { ModelProvider, ProviderError } from './ModelProvider';
 
-const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
+const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 
 /**
  * OpenAI provider.
@@ -12,11 +12,19 @@ const OPENAI_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
  */
 export class OpenAIProvider implements ModelProvider {
   readonly name = 'openai';
+  private readonly baseUrl: string;
 
-  constructor(private readonly config: AgentConfig) {}
+  constructor(private readonly config: AgentConfig) {
+    this.baseUrl = (config.openAiBaseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  }
 
   getInfo(): string {
-    return `${this.config.model} @ api.openai.com`;
+    return `${this.config.model} @ ${this.baseUrl}`;
+  }
+
+  /** json_object response_format is OpenAI-specific; skip it for other hosts. */
+  private supportsJsonFormat(): boolean {
+    return this.baseUrl.includes('api.openai.com');
   }
 
   private getApiKey(): string {
@@ -39,7 +47,7 @@ export class OpenAIProvider implements ModelProvider {
 
     let response: Response;
     try {
-      response = await fetch(OPENAI_ENDPOINT, {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -50,11 +58,11 @@ export class OpenAIProvider implements ModelProvider {
           messages,
           temperature: opts?.temperature ?? 0.1,
           // Our prompts always mention JSON, which json_object mode requires.
-          ...(opts?.format ? { response_format: { type: 'json_object' } } : {})
+          ...(opts?.format && this.supportsJsonFormat() ? { response_format: { type: 'json_object' } } : {})
         })
       });
     } catch {
-      throw new ProviderError('Cannot reach the OpenAI API. Check your network connection.');
+      throw new ProviderError(`Cannot reach ${this.baseUrl}. Check your network connection and "codeloopAi.openAiBaseUrl".`);
     }
 
     if (response.status === 401) {

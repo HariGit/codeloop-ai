@@ -109,6 +109,7 @@ function getConfig(): AgentConfig {
     model: cfg.get<string>('model', 'qwen3-coder:latest'),
     apiKey: cfg.get<string>('apiKey', '') || undefined,
     numCtx: cfg.get<number>('ollamaNumCtx', 32768),
+    openAiBaseUrl: cfg.get<string>('openAiBaseUrl', '') || undefined,
     maxIterations: Math.min(loop.defaultMaxIterations, absoluteMax),
     loop
   };

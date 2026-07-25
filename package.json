@@ -81,7 +81,12 @@
         "codeloopAi.openAiApiKey": {
           "type": "string",
           "default": "",
-          "description": "OpenAI API key (used when provider is 'openai')."
+          "description": "API key for the OpenAI-compatible provider (OpenAI sk-..., NVIDIA nvapi-..., etc.)."
+        },
+        "codeloopAi.openAiBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for OpenAI-compatible APIs. Empty = api.openai.com. NVIDIA: https://integrate.api.nvidia.com/v1"
         },
         "codeloopAi.apiKey": {
           "type": "string",

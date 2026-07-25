@@ -160,6 +160,8 @@ export interface AgentConfig {
   apiKey?: string;
   /** Ollama context window (num_ctx); default 32768. */
   numCtx?: number;
+  /** Base URL for OpenAI-compatible APIs (NVIDIA NIM, Groq, LM Studio, ...). */
+  openAiBaseUrl?: string;
   /** Legacy default max iterations (kept for backward compatibility). */
   maxIterations: number;
   /** Loop behavior; DEFAULT_LOOP_CONFIG is used when absent. */
