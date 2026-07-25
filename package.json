@@ -88,6 +88,11 @@
           "default": "",
           "description": "Base URL for OpenAI-compatible APIs. Empty = api.openai.com. NVIDIA: https://integrate.api.nvidia.com/v1"
         },
+        "codeloopAi.openAiExtraBody": {
+          "type": "object",
+          "default": {},
+          "description": "Extra request-body fields for OpenAI-compatible APIs, e.g. {\"max_tokens\": 16384, \"chat_template_kwargs\": {\"thinking\": false}} for NVIDIA reasoning models."
+        },
         "codeloopAi.apiKey": {
           "type": "string",
           "default": "",

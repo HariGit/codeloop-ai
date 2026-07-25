@@ -162,6 +162,9 @@ export interface AgentConfig {
   numCtx?: number;
   /** Base URL for OpenAI-compatible APIs (NVIDIA NIM, Groq, LM Studio, ...). */
   openAiBaseUrl?: string;
+  /** Extra request-body fields merged into OpenAI-compatible calls
+   *  (e.g. NVIDIA's chat_template_kwargs, max_tokens). */
+  openAiExtraBody?: Record<string, unknown>;
   /** Legacy default max iterations (kept for backward compatibility). */
   maxIterations: number;
   /** Loop behavior; DEFAULT_LOOP_CONFIG is used when absent. */

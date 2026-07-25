@@ -110,6 +110,7 @@ function getConfig(): AgentConfig {
     apiKey: cfg.get<string>('apiKey', '') || undefined,
     numCtx: cfg.get<number>('ollamaNumCtx', 32768),
     openAiBaseUrl: cfg.get<string>('openAiBaseUrl', '') || undefined,
+    openAiExtraBody: cfg.get<Record<string, unknown>>('openAiExtraBody', {}),
     maxIterations: Math.min(loop.defaultMaxIterations, absoluteMax),
     loop
   };

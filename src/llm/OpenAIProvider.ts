@@ -58,7 +58,9 @@ export class OpenAIProvider implements ModelProvider {
           messages,
           temperature: opts?.temperature ?? 0.1,
           // Our prompts always mention JSON, which json_object mode requires.
-          ...(opts?.format && this.supportsJsonFormat() ? { response_format: { type: 'json_object' } } : {})
+          ...(opts?.format && this.supportsJsonFormat() ? { response_format: { type: 'json_object' } } : {}),
+          // User-supplied provider-specific fields (may override the above).
+          ...(this.config.openAiExtraBody ?? {})
         })
       });
     } catch {
