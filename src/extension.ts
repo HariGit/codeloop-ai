@@ -63,7 +63,8 @@ async function generateContextFiles(): Promise<void> {
   const descriptions: Record<string, string> = {
     'CLAUDE.md': 'Claude Code reads this on every session',
     'AGENTS.md': 'Codex and generic coding agents',
-    '.github/copilot-instructions.md': 'GitHub Copilot custom instructions'
+    '.github/copilot-instructions.md': 'GitHub Copilot custom instructions',
+    '.claude/skills/ (export .codeloop skills)': 'Your .codeloop skills as Claude Code skills'
   };
   const picks = await vscode.window.showQuickPick(
     CONTEXT_TARGETS.map(t => ({ label: t, description: descriptions[t], picked: true })),
@@ -77,8 +78,17 @@ async function generateContextFiles(): Promise<void> {
   output.appendLine('\nGenerating agent context files (scanning project first)...');
   try {
     const result = await generateAgentContextFiles(root, picks.map(p => p.label));
-    output.appendLine(`Context: ${result.content.length} chars. Files updated: ${result.files.join(', ')}`);
-    vscode.window.showInformationMessage(`CodeLoop AI: agent context written to ${result.files.join(', ')}`);
+    if (result.files.length > 0) {
+      output.appendLine(`Context: ${result.content.length} chars. Files updated: ${result.files.join(', ')}`);
+    }
+    if (result.skills.length > 0) {
+      output.appendLine(`Skills exported to .claude/skills/: ${result.skills.join(', ')}`);
+    }
+    const summary = [
+      result.files.length ? result.files.join(', ') : '',
+      result.skills.length ? `${result.skills.length} skill(s) → .claude/skills/` : ''
+    ].filter(Boolean).join(' + ');
+    vscode.window.showInformationMessage(`CodeLoop AI: ${summary || 'nothing selected'}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     vscode.window.showErrorMessage(`CodeLoop AI: context generation failed: ${message}`);

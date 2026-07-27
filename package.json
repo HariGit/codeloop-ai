@@ -2,7 +2,7 @@
   "name": "codeloop-ai",
   "displayName": "CodeLoop AI",
   "description": "Salesforce-aware recursive coding agent for VS Code \u2014 local-first (Ollama) with Claude/OpenAI/Copilot support, LogLens debug log analysis, architecture overviews, and agent context generation",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "vasu",
   "repository": {
     "type": "git",

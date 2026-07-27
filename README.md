@@ -131,8 +131,9 @@ Then in your Salesforce project: copy `.codeloop/` in, run **Scan Salesforce Pro
 Illustrated by the hero image at the top of this page.
 
 1. `Ctrl+Shift+P` → **CodeLoop AI: Generate Agent Context Files**.
-2. Pick targets: CLAUDE.md, AGENTS.md, `.github/copilot-instructions.md` (all pre-selected).
+2. Pick targets: CLAUDE.md, AGENTS.md, `.github/copilot-instructions.md`, and `.claude/skills/` (export).
 3. Claude Code / Codex / Copilot now start every session pre-oriented — your notes outside the managed `<!-- CODELOOP:BEGIN/END -->` block are preserved.
+4. The `.claude/skills/` target exports every `.codeloop/skills/*.md` as a proper Claude Code skill (`.claude/skills/<name>/SKILL.md` with name/description frontmatter) — write a skill once in `.codeloop/`, use it in both CodeLoop and Claude Code.
 
 </details>
 
